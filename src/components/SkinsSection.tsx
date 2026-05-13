@@ -112,6 +112,13 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const cat = data.categories[activeCategory] || (categoriesPresent[0] && data.categories[categoriesPresent[0]]);
   const currentCategory = data.categories[activeCategory] ? activeCategory : categoriesPresent[0];
 
+  // PERFORMANCE: cap visible items per category. Safari iOS dies if we render
+  // hundreds of <img>s with clip-path + drop-shadow filters at once. Users
+  // can click "Show more" to load the rest in batches.
+  const [visibleCount, setVisibleCount] = useState(60);
+  // Reset visible count when switching categories so we always start from 60
+  useEffect(() => { setVisibleCount(60); }, [currentCategory]);
+
   // Manual loadout overrides — keyed by weapon name → assetId
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   useEffect(() => { setOverrides(getLoadoutOverrides()); }, []);
@@ -283,7 +290,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {cat.items.map((item) => (
+            {cat.items.slice(0, visibleCount).map((item) => (
               <SkinCard
                 key={item.assetId}
                 item={item}
@@ -293,6 +300,19 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
               />
             ))}
           </div>
+          {cat.items.length > visibleCount && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="font-mono text-xs text-slate-500">
+                Showing {visibleCount} of {cat.items.length} items
+              </div>
+              <button
+                onClick={() => setVisibleCount((n) => n + 60)}
+                className="bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg hover:brightness-110"
+              >
+                Show 60 more
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
