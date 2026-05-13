@@ -1,4 +1,6 @@
 import type { Profile } from "../lib/demoData";
+import { PlayerSearch } from "./PlayerSearch";
+import { CurrencyPicker } from "./CurrencyPicker";
 
 export function Header({
   profile,
@@ -6,12 +8,14 @@ export function Header({
   onLogout,
   onDemo,
   isDemo,
+  isPublicView,
 }: {
   profile: Profile | null;
   onLogin: () => void;
   onLogout: () => void;
   onDemo: () => void;
   isDemo: boolean;
+  isPublicView?: boolean;
 }) {
   return (
     <header className="sticky top-0 z-40 border-b border-cs-border bg-cs-bg/85 backdrop-blur">
@@ -49,7 +53,14 @@ export function Header({
           </NavGroup>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Global player search */}
+          <div className="hidden md:block">
+            <PlayerSearch />
+          </div>
+          {/* Currency picker */}
+          <CurrencyPicker />
+
           {profile ? (
             <>
               <div className="hidden items-center gap-2 rounded border border-cs-border bg-cs-panel px-3 py-1.5 sm:flex">
@@ -61,16 +72,25 @@ export function Header({
                 <div className="leading-tight">
                   <div className="font-display text-sm font-bold text-white">{profile.personaname}</div>
                   <div className="font-mono text-[10px] text-slate-500">
-                    {isDemo ? "DEMO MODE" : "STEAM AUTHENTICATED"}
+                    {isPublicView ? "PUBLIC VIEW" : isDemo ? "DEMO MODE" : "STEAM AUTH"}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={onLogout}
-                className="font-display text-xs font-bold uppercase tracking-wider text-slate-400 transition hover:text-cs-red"
-              >
-                {isDemo ? "Exit Demo" : "Logout"}
-              </button>
+              {isPublicView ? (
+                <a
+                  href="/"
+                  className="font-display text-xs font-bold uppercase tracking-wider text-cs-orange transition hover:brightness-110"
+                >
+                  ← My Profile
+                </a>
+              ) : (
+                <button
+                  onClick={onLogout}
+                  className="font-display text-xs font-bold uppercase tracking-wider text-slate-400 transition hover:text-cs-red"
+                >
+                  {isDemo ? "Exit Demo" : "Logout"}
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -82,10 +102,10 @@ export function Header({
               </button>
               <button
                 onClick={onLogin}
-                className="flex items-center gap-2 bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg transition hover:brightness-110 clip-corner"
+                className="flex items-center gap-2 bg-cs-orange px-3 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg transition hover:brightness-110 clip-corner sm:px-4"
               >
                 <SteamIcon />
-                Sign in
+                <span className="hidden sm:inline">Sign in</span>
               </button>
             </>
           )}

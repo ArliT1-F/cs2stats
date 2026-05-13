@@ -373,27 +373,43 @@ function EloProgress({
   lightHistory: LightHistoryItem[];
   currentElo: number | undefined;
 }) {
-  // We don't get per-match ELO from the v4 history endpoint, so we approximate:
-  // working backwards from currentElo, assume ±25 ELO for win/loss (roughly accurate
-  // for FACEIT's algorithm). Better than nothing; honest disclaimer in the title.
+  // ELO timeline reconstruction.
+  // Preferred: use real `eloChange` values from the FACEIT match-detail
+  // endpoint when available (the FACEIT history endpoint includes them on
+  // recent matches but not always older ones).
+  // Fallback: ±25 ELO per win/loss — close to FACEIT's actual algorithm but
+  // not exact. Honest disclaimer shown on the chart.
   const series = useMemo(() => {
-    const wls: Array<{ won: boolean | null; ts: number }> = [
-      ...matches.map((m) => ({ won: m.won, ts: m.finishedAt })),
-      ...lightHistory.map((m) => ({ won: m.won, ts: m.finishedAt })),
+    const wls: Array<{ won: boolean | null; ts: number; eloChange: number | null }> = [
+      ...matches.map((m) => ({
+        won: m.won,
+        ts: m.finishedAt,
+        eloChange: m.eloChange ?? null,
+      })),
+      ...lightHistory.map((m) => ({
+        won: m.won,
+        ts: m.finishedAt,
+        eloChange: null,
+      })),
     ]
       .filter((m) => m.ts && m.won !== null)
       .sort((a, b) => a.ts - b.ts);
 
     if (wls.length === 0 || !currentElo) return null;
 
+    // Walk backwards from current ELO, applying real change when known
     const reversed = [...wls].reverse();
     let elo = currentElo;
-    const back: Array<{ idx: number; elo: number; won: boolean }> = [];
+    const back: Array<{ idx: number; elo: number; won: boolean; estimated: boolean }> = [];
     for (let i = 0; i < reversed.length; i++) {
-      back.push({ idx: i, elo, won: !!reversed[i].won });
-      elo = elo + (reversed[i].won ? -25 : 25);
+      const change = reversed[i].eloChange;
+      const isReal = change !== null && Number.isFinite(change);
+      back.push({ idx: i, elo, won: !!reversed[i].won, estimated: !isReal });
+      elo = elo - (isReal ? change : (reversed[i].won ? 25 : -25));
     }
-    const forward = back.reverse().map((b, i) => ({ idx: i + 1, elo: b.elo, won: b.won }));
+    const forward = back
+      .reverse()
+      .map((b, i) => ({ idx: i + 1, elo: b.elo, won: b.won, estimated: b.estimated }));
     return forward;
   }, [matches, lightHistory, currentElo]);
 
@@ -438,7 +454,13 @@ function EloProgress({
           </ResponsiveContainer>
         </div>
         <div className="mt-2 font-mono text-[10px] uppercase tracking-widest text-slate-600">
-          // ELO timeline reconstructed from win/loss history — actual per-match ELO not exposed by FACEIT API
+          // {(() => {
+            const realCount = series.filter((s) => !s.estimated).length;
+            const estCount = series.length - realCount;
+            if (estCount === 0) return "All ELO values from FACEIT API (real data)";
+            if (realCount === 0) return "ELO timeline estimated (±25 per W/L) — FACEIT didn't return per-match ELO";
+            return `${realCount} real + ${estCount} estimated — FACEIT only exposes per-match ELO for some recent matches`;
+          })()}
         </div>
       </div>
     </div>

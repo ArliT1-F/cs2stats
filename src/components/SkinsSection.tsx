@@ -1,5 +1,24 @@
 import { useEffect, useState, useCallback } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
+import { useCurrency } from "../lib/currency";
+
+const LOADOUT_OVERRIDE_KEY = "cs2tracker:loadout_overrides";
+
+// User-editable equip overrides — keyed by weapon name → assetId. Stored in
+// localStorage. Lets users mark any of their owned skins as "equipped" since
+// Valve doesn't expose the real CS2 loadout via API.
+function getLoadoutOverrides(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LOADOUT_OVERRIDE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+function setLoadoutOverride(weapon: string, assetId: string | null) {
+  const all = getLoadoutOverrides();
+  if (assetId === null) delete all[weapon];
+  else all[weapon] = assetId;
+  try { localStorage.setItem(LOADOUT_OVERRIDE_KEY, JSON.stringify(all)); } catch {}
+}
 
 // Shows the user's full CS2 skin inventory grouped by weapon category, with
 // market prices fetched from a cached price database (BUFF163 by default,
@@ -92,11 +111,32 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const cat = data.categories[activeCategory] || (categoriesPresent[0] && data.categories[categoriesPresent[0]]);
   const currentCategory = data.categories[activeCategory] ? activeCategory : categoriesPresent[0];
 
-  const best = Object.values(data.bestPerWeapon || {}).sort((a, b) =>
+  // Manual loadout overrides — keyed by weapon name → assetId
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  useEffect(() => { setOverrides(getLoadoutOverrides()); }, []);
+
+  // Compute the "loadout" — user overrides take priority, fall back to bestPerWeapon
+  const allItemsByAssetId = new Map<string, SkinItem>();
+  for (const cat of Object.values(data.categories)) {
+    for (const it of cat.items) allItemsByAssetId.set(it.assetId, it);
+  }
+  const effectiveLoadout: Record<string, SkinItem> = { ...(data.bestPerWeapon || {}) };
+  for (const [weapon, assetId] of Object.entries(overrides)) {
+    const overrideItem = allItemsByAssetId.get(assetId);
+    if (overrideItem) effectiveLoadout[weapon] = overrideItem;
+  }
+  const best = Object.values(effectiveLoadout).sort((a, b) =>
     (b.price?.lowestPrice || 0) - (a.price?.lowestPrice || 0)
   );
 
+  const handleEquip = (item: SkinItem) => {
+    const isCurrentlyEquipped = overrides[item.weapon] === item.assetId;
+    setLoadoutOverride(item.weapon, isCurrentlyEquipped ? null : item.assetId);
+    setOverrides(getLoadoutOverrides());
+  };
+
   const sourceLabel = priceSource === "buff163" ? "BUFF163" : "Steam Market";
+  const { format: formatTotal } = useCurrency();
 
   return (
     <div className="space-y-5">
@@ -118,7 +158,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         />
         <SummaryCard
           label={`Total Value (${sourceLabel})`}
-          value={data.totalEstimatedValue ? `$${data.totalEstimatedValue.toFixed(2)}` : "—"}
+          value={data.totalEstimatedValue ? formatTotal(data.totalEstimatedValue) : "—"}
           accent="text-emerald-400"
         />
         {/* Price source toggle */}
@@ -174,8 +214,18 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {best.slice(0, 12).map((item) => (
-              <SkinCard key={item.assetId} item={item} compact />
+              <SkinCard
+                key={item.assetId}
+                item={item}
+                compact
+                isEquipped={overrides[item.weapon] === item.assetId}
+                onEquip={() => handleEquip(item)}
+              />
             ))}
+          </div>
+          <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-slate-600">
+            // Click EQUIP on any skin below to override the auto-detected best.
+            Choices saved locally on this device.
           </div>
         </div>
       )}
@@ -208,7 +258,12 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {cat.items.map((item) => (
-              <SkinCard key={item.assetId} item={item} />
+              <SkinCard
+                key={item.assetId}
+                item={item}
+                isEquipped={overrides[item.weapon] === item.assetId}
+                onEquip={["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(item.category) ? () => handleEquip(item) : undefined}
+              />
             ))}
           </div>
         </>
@@ -240,7 +295,14 @@ function PriceSourceBtn({ active, onClick, children }: { active: boolean; onClic
   );
 }
 
-function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
+function SkinCard({ item, compact, isEquipped, onEquip }: {
+  item: SkinItem;
+  compact?: boolean;
+  isEquipped?: boolean;
+  onEquip?: () => void;
+}) {
+  const { format } = useCurrency();
+  const formatPrice = (n: number | null | undefined) => format(n);
   const rarityHex = item.rarityColor || "#94a3b8";
   return (
     <a
@@ -253,6 +315,9 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
       <div className="h-1 w-full" style={{ background: rarityHex }} />
 
       <div className="absolute right-2 top-3 z-10 flex flex-col gap-1">
+        {isEquipped && (
+          <span className="bg-emerald-500 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-cs-bg" title="Marked as equipped">★ EQUIP</span>
+        )}
         {item.stattrak && (
           <span className="bg-orange-500 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-white">ST</span>
         )}
@@ -261,6 +326,19 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
         )}
         {!item.tradable && (
           <span className="bg-cs-red/70 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-white" title="Not tradable">🔒</span>
+        )}
+        {onEquip && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEquip(); }}
+            className={`px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest transition ${
+              isEquipped
+                ? "bg-slate-600 text-white hover:bg-slate-500"
+                : "bg-cs-orange/80 text-cs-bg hover:bg-cs-orange"
+            }`}
+            title={isEquipped ? "Unmark as equipped" : "Mark as equipped"}
+          >
+            {isEquipped ? "UNEQUIP" : "EQUIP"}
+          </button>
         )}
       </div>
 
@@ -295,7 +373,7 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
             {item.price?.lowestPrice ? (
               <>
                 <div className="font-display text-base font-bold text-emerald-400">
-                  {item.price.raw || `$${item.price.lowestPrice.toFixed(2)}`}
+                  {formatPrice(item.price.lowestPrice)}
                 </div>
                 {item.price.source && (
                   <div className="font-mono text-[9px] text-slate-500">{item.price.source}</div>

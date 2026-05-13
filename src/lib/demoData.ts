@@ -127,6 +127,9 @@ export interface FaceitMatch {
   demoUrl: string | null;
   teams: FaceitMatchTeam[];
   totalRounds?: number | null;
+  eloChange?: number | null;
+  roundResultsRaw?: string | null;
+  statsAvailable?: boolean;
   // Convenience: my own stats
   kills: number | null;
   deaths: number | null;
@@ -392,6 +395,12 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       demoUrl: null,
       teams: [teamA, teamB],
       totalRounds,
+      eloChange: won ? Math.floor(20 + rng() * 12) : -Math.floor(18 + rng() * 12),
+      // Fake round-by-round string: "1,0,1,1,..." 1=teamA wins
+      roundResultsRaw: Array.from({ length: totalRounds }, () =>
+        rng() > (won ? 0.4 : 0.6) ? "1" : "0"
+      ).join(","),
+      statsAvailable: true,
       kills: me.kills, deaths: me.deaths, assists: me.assists,
       kdRatio: me.kdRatio, krRatio: me.krRatio, adr: me.adr,
       damage: me.damage,
@@ -480,7 +489,7 @@ function buildDemoLifetime(rng: () => number): Record<string, string> {
     "Total Sniper Kills": String(Math.floor(rng() * 1500 + 50)),
     "Average Triple Kills": (rng() * 0.6 + 0.6).toFixed(2),
     "Average Quadro Kills": (rng() * 0.3 + 0.1).toFixed(2),
-    "Average Penta Kills": (rng() * 0.05).toFixed(3),
+    "Average Aces": (rng() * 0.05).toFixed(3),
     "Total Aces": String(Math.floor(rng() * 4)),
     "Total Clutches": String(Math.floor(rng() * 80 + 5)),
     "Total MVPs": String(Math.floor(rng() * 250 + 50)),

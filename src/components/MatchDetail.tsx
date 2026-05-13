@@ -57,6 +57,27 @@ export function MatchDetail({ match, onClose }: { match: FaceitMatch; onClose?: 
         )}
       </div>
 
+      {/* ROUND-BY-ROUND TIMELINE */}
+      {match.roundResultsRaw && (
+        <RoundTimeline
+          rawRounds={match.roundResultsRaw}
+          teamA={teamA}
+          teamB={teamB}
+        />
+      )}
+
+      {/* "Stats unavailable" notice for older matches */}
+      {match.statsAvailable === false && (
+        <div className="mx-3 mt-3 border border-slate-600/40 bg-slate-700/10 p-3 text-sm text-slate-400 sm:mx-5">
+          <div className="font-display font-bold uppercase tracking-wider text-slate-300">
+            Detailed stats no longer available
+          </div>
+          <div className="mt-0.5 font-mono text-[11px] text-slate-500">
+            // FACEIT prunes per-match stats after ~6 months. Roster &amp; scores still shown above.
+          </div>
+        </div>
+      )}
+
       {/* SCOREBOARDS */}
       <div className="grid gap-1 p-3 sm:p-5 md:grid-cols-2">
         <TeamScoreboard team={teamA} />
@@ -128,6 +149,76 @@ function ScoreDisplay({ teamA, teamB }: { teamA: FaceitMatchTeam; teamB: FaceitM
       <div className="font-display text-2xl text-slate-600">:</div>
       <div className={`font-display text-4xl sm:text-5xl font-black ${teamB.won ? "text-emerald-400" : "text-slate-300"}`}>
         {teamB.score ?? "—"}
+      </div>
+    </div>
+  );
+}
+
+// Round-by-round timeline. FACEIT exposes results as a comma-separated string
+// (e.g. "1,1,0,1,0,1,0,0,1,1,1,1") where 1 = team1 wins, 0 = team2 wins.
+// We render one square per round, color-coded by which team won.
+function RoundTimeline({
+  rawRounds,
+  teamA,
+  teamB,
+}: {
+  rawRounds: string;
+  teamA: FaceitMatchTeam;
+  teamB: FaceitMatchTeam;
+}) {
+  const rounds = rawRounds.split(/[,\s]+/).filter((r) => r === "0" || r === "1");
+  if (rounds.length === 0) return null;
+
+  // CS2 standard: rounds 1-12 are first half (team1 = CT typically), rounds 13-24 second half (sides swap).
+  // We just visualize who won each round with team's accent color.
+  const aColor = teamA.won ? "bg-emerald-500" : "bg-cs-red";
+  const bColor = teamB.won ? "bg-emerald-500" : "bg-cs-red";
+  const aColorMuted = teamA.won ? "bg-emerald-500/40" : "bg-cs-red/40";
+  const bColorMuted = teamB.won ? "bg-emerald-500/40" : "bg-cs-red/40";
+
+  return (
+    <div className="border-y border-cs-border bg-cs-bg/40 p-3 sm:p-4">
+      <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-slate-500">
+        <span>// ROUND TIMELINE ({rounds.length} rounds)</span>
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="flex items-center gap-1.5">
+            <span className={`h-2 w-3 ${aColor}`} />
+            <span className="truncate text-slate-300 max-w-[100px]">{teamA.name}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className={`h-2 w-3 ${bColor}`} />
+            <span className="truncate text-slate-300 max-w-[100px]">{teamB.name}</span>
+          </span>
+        </div>
+      </div>
+      <div className="flex gap-0.5 overflow-x-auto">
+        {rounds.map((r, i) => {
+          // Mark half-time visually with a slightly different style
+          const isHalfTime = i === 11; // round 12 → 13 boundary
+          const isOvertime = i >= 24;
+          const won = r === "1";
+          const winnerColor = won
+            ? (isOvertime ? aColor + " ring-1 ring-cs-orange" : aColor)
+            : (isOvertime ? bColor + " ring-1 ring-cs-orange" : bColor);
+          // Use full color for the actual winner, muted for visual rhythm
+          const baseClass = (i % 2 === 0 ? winnerColor : (won ? aColorMuted : bColorMuted));
+          return (
+            <div
+              key={i}
+              className={`relative h-6 w-3 flex-shrink-0 ${baseClass}`}
+              title={`Round ${i + 1}: ${won ? teamA.name : teamB.name} won`}
+            >
+              {isHalfTime && (
+                <span className="absolute -right-0.5 top-0 h-full w-px bg-cs-orange" title="Half-time" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex items-center justify-between font-mono text-[9px] uppercase tracking-widest text-slate-600">
+        <span>R1</span>
+        <span>HALFTIME ↑</span>
+        <span>R{rounds.length}</span>
       </div>
     </div>
   );

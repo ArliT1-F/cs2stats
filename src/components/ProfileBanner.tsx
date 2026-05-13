@@ -37,6 +37,7 @@ export function ProfileBanner({
             <a href={profile.profileurl} target="_blank" rel="noopener noreferrer" className="text-cs-blue hover:underline">
               View Steam Profile ↗
             </a>
+            <ShareLink steamId={profile.steamid} />
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -79,5 +80,14 @@ function FaceitBadge({ level }: { level: number }) {
     >
       {level}
     </div>
+  );
+}
+
+function ShareLink({ steamId }: { steamId: string }) {
+  const shareUrl = `https://cs2stats.com/profile/${steamId}`;
+  return (
+    <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="text-cs-blue hover:underline">
+      Share ↗
+    </a>
   );
 }

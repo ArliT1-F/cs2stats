@@ -16,6 +16,7 @@ export function Dashboard({
   stats,
   faceit,
   isDemo,
+  isPublicView,
   demoReason,
   demoMessage,
 }: {
@@ -23,11 +24,29 @@ export function Dashboard({
   stats: Stats;
   faceit: FaceitData | null;
   isDemo: boolean;
+  isPublicView?: boolean;
   demoReason?: string | null;
   demoMessage?: string | null;
 }) {
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+      {isPublicView && (
+        <div className="mb-6 flex items-start gap-3 border border-cs-blue/40 bg-cs-blue/10 p-4 clip-corner">
+          <svg className="h-5 w-5 flex-shrink-0 text-cs-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4M12 8h.01" />
+          </svg>
+          <div className="flex-1">
+            <div className="font-display font-bold uppercase tracking-wider text-cs-blue">
+              Public Profile View
+            </div>
+            <div className="text-sm text-slate-300">
+              You're viewing <span className="font-bold text-white">{profile.personaname}</span>'s public profile.
+              Inventory & live status are only visible to the profile owner.
+            </div>
+          </div>
+        </div>
+      )}
       {isDemo && <DemoBanner reason={demoReason} message={demoMessage} />}
 
       <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
@@ -50,10 +69,13 @@ export function Dashboard({
         <MapsSection maps={stats.maps} />
       </section>
 
-      <section id="skins" className="mt-12 scroll-mt-20">
-        <SectionHeader number="04" title="CS2 Skin Inventory" subtitle="Loadout & market values from Steam Community" badge="steam" />
-        <SkinsSection isDemo={isDemo} />
-      </section>
+      {/* Inventory is only available for the logged-in user (cookie-bound) */}
+      {!isPublicView && (
+        <section id="skins" className="mt-12 scroll-mt-20">
+          <SectionHeader number="04" title="CS2 Skin Inventory" subtitle="Loadout & market values from Steam Community" badge="steam" />
+          <SkinsSection isDemo={isDemo} />
+        </section>
+      )}
 
       {/* ─── FACEIT (Competitive matchmaking only — kept separate from Steam) ─── */}
       <SourceDivider source="faceit" label="FACEIT Data" note="Competitive matchmaking only · Never combined with Steam stats above" />

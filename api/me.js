@@ -104,9 +104,13 @@ async function fetchFullMatch(match, playerId, headers) {
     fetch(`https://open.faceit.com/data/v4/matches/${match.match_id}`, { headers }).catch(() => null),
     fetch(`https://open.faceit.com/data/v4/matches/${match.match_id}/stats`, { headers }).catch(() => null),
   ]);
+  // 404 from /stats is common for older matches that FACEIT pruned
+  const statsAvailable = statsResp?.ok;
   const detail = detailResp?.ok ? await detailResp.json() : null;
-  const statsJson = statsResp?.ok ? await statsResp.json() : null;
-  return summarizeMatch(match, playerId, detail, statsJson);
+  const statsJson = statsAvailable ? await statsResp.json() : null;
+  const summary = summarizeMatch(match, playerId, detail, statsJson);
+  summary.statsAvailable = statsAvailable;
+  return summary;
 }
 
 function buildPlayerLookup(detail) {
@@ -263,6 +267,17 @@ function summarizeMatch(match, playerId, detail, statsJson) {
       ? (teams[0].score || 0) + (teams[1].score || 0)
       : null;
 
+  // Real ELO change from FACEIT history endpoint (when present — older matches
+  // may have it stripped; some hubs don't track it). When missing, the UI
+  // falls back to the ±25 estimation.
+  const eloChange = match?.elo_change ?? match?.results?.elo_change ?? null;
+
+  // Round-by-round timeline string (e.g. "1,1,0,1,0,1,...") as comma-separated
+  // 1=team1 wins, 0=team2 wins. FACEIT exposes this via round_stats.
+  const roundResultsRaw = round?.round_stats?.["Rounds"]
+    || round?.round_stats?.["round_results"]
+    || null;
+
   return {
     matchId: match.match_id,
     map,
@@ -273,6 +288,8 @@ function summarizeMatch(match, playerId, detail, statsJson) {
     competition: match.competition_name || detail?.competition_name || "FACEIT",
     matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
     demoUrl: match.demo_url?.[0] || detail?.demo_url?.[0] || null,
+    eloChange,
+    roundResultsRaw,
     teams,
     totalRounds,
     // Convenience: my own stats at top level (used in compact match list + aggregates)
