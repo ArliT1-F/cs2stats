@@ -66,10 +66,43 @@ function ShareLink({ steamId }: { steamId: string }) {
   const [copied, setCopied] = useState(false);
   const onClick = () => {
     const url = `${window.location.origin}/u/${steamId}`;
-    navigator.clipboard?.writeText(url).then(() => {
+    // iOS Safari can throw when *accessing* navigator.clipboard in restricted
+    // contexts (private browsing, certain MDM profiles), not just when calling
+    // writeText. Guard the whole access.
+    try {
+      const cb = navigator.clipboard;
+      if (cb && typeof cb.writeText === "function") {
+        cb.writeText(url).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }).catch(() => {
+          fallbackCopy(url);
+        });
+      } else {
+        fallbackCopy(url);
+      }
+    } catch {
+      fallbackCopy(url);
+    }
+  };
+
+  const fallbackCopy = (text: string) => {
+    // Old-school document.execCommand fallback for Safari restricted modes
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch {
+      // Last resort: just prompt
+      window.prompt("Copy this link:", text);
+    }
   };
   return (
     <button
