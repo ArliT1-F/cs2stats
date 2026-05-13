@@ -41,6 +41,7 @@ export interface InventoryResponse {
   error?: string;
   message?: string;
   totalItems?: number;
+  totalInventoryCount?: number | null;
   totalEstimatedValue?: number;
   pricesIncluded?: boolean;
   pricedCount?: number;
@@ -48,10 +49,14 @@ export interface InventoryResponse {
   priceSource?: string;
   partial?: boolean;
   diagnostics?: {
+    totalInventoryCount?: number | null;
     pagesFetched?: number;
     pagesAttempted?: number;
     httpStatuses?: number[];
     rateLimitHits?: number;
+    duplicatesSkipped?: number;
+    perPageCounts?: number[];
+    stoppedReason?: string;
     lastError?: string | null;
   };
   categories: Record<string, SkinCategory>;
