@@ -40,21 +40,105 @@ async function fetchCs2Stats(steamId, key) {
 
 async function fetchFaceit(steamId, key) {
   try {
+    const headers = { Authorization: `Bearer ${key}` };
+
     const r = await fetch(
       `https://open.faceit.com/data/v4/players?game=cs2&game_player_id=${steamId}`,
-      { headers: { Authorization: `Bearer ${key}` } }
+      { headers }
     );
     if (!r.ok) return null;
     const player = await r.json();
-    const statsResp = await fetch(
-      `https://open.faceit.com/data/v4/players/${player.player_id}/stats/cs2`,
-      { headers: { Authorization: `Bearer ${key}` } }
-    );
+    const pid = player.player_id;
+
+    // Fetch lifetime stats (with per-map segments) and recent history in parallel.
+    // The history endpoint returns 20 most recent CS2 matches.
+    const [statsResp, historyResp] = await Promise.all([
+      fetch(`https://open.faceit.com/data/v4/players/${pid}/stats/cs2`, { headers }),
+      fetch(`https://open.faceit.com/data/v4/players/${pid}/history?game=cs2&offset=0&limit=20`, { headers }),
+    ]);
+
     const stats = statsResp.ok ? await statsResp.json() : null;
-    return { player, stats };
+    const historyJson = historyResp.ok ? await historyResp.json() : null;
+
+    // For each recent match, fetch detailed stats so we can show K/D, score, etc.
+    // We limit to the 10 most recent matches to stay within reasonable response time.
+    const matches = (historyJson?.items || []).slice(0, 10);
+    const enrichedMatches = await Promise.all(
+      matches.map(async (m) => {
+        try {
+          const ms = await fetch(
+            `https://open.faceit.com/data/v4/matches/${m.match_id}/stats`,
+            { headers }
+          );
+          if (!ms.ok) return summarizeMatch(m, pid, null);
+          const sj = await ms.json();
+          return summarizeMatch(m, pid, sj);
+        } catch {
+          return summarizeMatch(m, pid, null);
+        }
+      })
+    );
+
+    return { player, stats, matches: enrichedMatches };
   } catch {
     return null;
   }
+}
+
+// Convert raw Faceit match + stats payloads into a flat shape the UI uses.
+function summarizeMatch(match, playerId, statsJson) {
+  const round = statsJson?.rounds?.[0];
+  const map = round?.round_stats?.["Map"] || match.voting?.map?.pick?.[0] || "—";
+  const score = round?.round_stats?.["Score"] || "—";
+  const winnerTeamId = round?.round_stats?.["Winner"];
+
+  // Find which team the player was on
+  let myTeam = null;
+  let myStats = null;
+  let opponentName = "—";
+  if (round?.teams) {
+    for (const t of round.teams) {
+      const me = t.players?.find((p) => p.player_id === playerId);
+      if (me) {
+        myTeam = t;
+        myStats = me.player_stats || {};
+      } else {
+        opponentName = t.team_stats?.Team || opponentName;
+      }
+    }
+  }
+
+  // Fallback team info from match payload if stats aren't available
+  if (!myTeam && match.teams) {
+    for (const [, t] of Object.entries(match.teams)) {
+      const me = t.players?.find((p) => p.player_id === playerId);
+      if (me) myTeam = { team_id: t.team_id, nickname: t.nickname };
+    }
+  }
+
+  const won = myTeam && winnerTeamId ? myTeam.team_id === winnerTeamId : null;
+
+  return {
+    matchId: match.match_id,
+    map,
+    score,
+    won,
+    finishedAt: match.finished_at || match.started_at,
+    competition: match.competition_name || "FACEIT",
+    matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
+    demoUrl: match.demo_url?.[0] || null, // Faceit demo download URL (.dem.gz)
+    // Per-player stats (only present if stats endpoint succeeded)
+    kills: myStats?.["Kills"] ? +myStats["Kills"] : null,
+    deaths: myStats?.["Deaths"] ? +myStats["Deaths"] : null,
+    assists: myStats?.["Assists"] ? +myStats["Assists"] : null,
+    kdRatio: myStats?.["K/D Ratio"] ? +myStats["K/D Ratio"] : null,
+    krRatio: myStats?.["K/R Ratio"] ? +myStats["K/R Ratio"] : null,
+    headshotsPct: myStats?.["Headshots %"] ? +myStats["Headshots %"] : null,
+    mvps: myStats?.["MVPs"] ? +myStats["MVPs"] : null,
+    tripleKills: myStats?.["Triple Kills"] ? +myStats["Triple Kills"] : null,
+    quadroKills: myStats?.["Quadro Kills"] ? +myStats["Quadro Kills"] : null,
+    pentaKills: myStats?.["Penta Kills"] ? +myStats["Penta Kills"] : null,
+  };
 }
 
 function transformSteamStats(rawStats) {

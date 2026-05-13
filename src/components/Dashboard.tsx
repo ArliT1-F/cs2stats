@@ -3,6 +3,8 @@ import { OverviewSection } from "./OverviewSection";
 import { WeaponsSection } from "./WeaponsSection";
 import { MapsSection } from "./MapsSection";
 import { FaceitSection } from "./FaceitSection";
+import { MatchHistory } from "./MatchHistory";
+import { DemosSection } from "./DemosSection";
 import { ProfileBanner } from "./ProfileBanner";
 
 export function Dashboard({
@@ -42,8 +44,18 @@ export function Dashboard({
       </section>
 
       <section id="faceit" className="mt-12 scroll-mt-20">
-        <SectionHeader number="04" title="Faceit Profile" subtitle="Competitive ranking & lifetime stats" />
+        <SectionHeader number="04" title="Faceit Profile" subtitle="Competitive ranking & per-map performance" />
         <FaceitSection faceit={faceit} />
+      </section>
+
+      <section id="matches" className="mt-12 scroll-mt-20">
+        <SectionHeader number="05" title="Match History" subtitle="Recent FACEIT matches with full breakdown" />
+        <MatchHistory matches={faceit?.matches} />
+      </section>
+
+      <section id="demos" className="mt-12 scroll-mt-20">
+        <SectionHeader number="06" title="Match Demos" subtitle="Download & watch CS2 replay files" />
+        <DemosSection matches={faceit?.matches} />
       </section>
 
       <footer className="mt-16 border-t border-cs-border pt-6 text-center">

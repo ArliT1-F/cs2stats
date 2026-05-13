@@ -24,46 +24,122 @@ export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
   const elo = faceit.player.games?.cs2?.faceit_elo || 0;
   const region = faceit.player.games?.cs2?.region || "—";
   const lifetime = faceit.stats?.lifetime || {};
+  const segments = (faceit.stats?.segments || []).filter(
+    (s) => s.mode === "5v5" || !s.mode
+  );
 
   const statEntries = Object.entries(lifetime).slice(0, 8);
 
   return (
-    <div className="grid gap-5 lg:grid-cols-3">
-      <div className="relative overflow-hidden border border-cs-border bg-gradient-to-br from-orange-900/30 via-cs-panel to-cs-bg p-6 clip-corner">
-        <div className="absolute inset-0 tactical-grid opacity-30" />
-        <div className="relative">
-          <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FACEIT RANK</div>
-          <div className="mt-2 font-display text-3xl font-bold uppercase tracking-tight text-white">
-            {faceit.player.nickname}
-          </div>
-          <div className="mt-1 font-mono text-xs uppercase text-slate-500">
-            Region: {region} · Country: {faceit.player.country?.toUpperCase()}
-          </div>
-
-          <div className="mt-6 flex items-center gap-4">
-            <BigBadge level={lvl} />
-            <div>
-              <div className="font-display text-5xl font-black text-cs-orange text-glow">{elo}</div>
-              <div className="font-mono text-xs uppercase tracking-widest text-slate-500">ELO POINTS</div>
+    <div className="space-y-5">
+      {/* Top: rank + lifetime stats */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="relative overflow-hidden border border-cs-border bg-gradient-to-br from-orange-900/30 via-cs-panel to-cs-bg p-6 clip-corner">
+          <div className="absolute inset-0 tactical-grid opacity-30" />
+          <div className="relative">
+            <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FACEIT RANK</div>
+            <div className="mt-2 font-display text-3xl font-bold uppercase tracking-tight text-white">
+              {faceit.player.nickname}
             </div>
+            <div className="mt-1 font-mono text-xs uppercase text-slate-500">
+              Region: {region} · Country: {faceit.player.country?.toUpperCase()}
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
+              <BigBadge level={lvl} />
+              <div>
+                <div className="font-display text-5xl font-black text-cs-orange text-glow">{elo}</div>
+                <div className="font-mono text-xs uppercase tracking-widest text-slate-500">ELO POINTS</div>
+              </div>
+            </div>
+            <div className="mt-4 font-mono text-xs uppercase tracking-widest text-slate-500">
+              Skill Level {lvl} / 10
+            </div>
+            <div className="mt-2 h-2 w-full bg-cs-bg">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 via-cs-orange to-cs-red"
+                style={{ width: `${lvl * 10}%` }}
+              />
+            </div>
+            <a
+              href={`https://www.faceit.com/en/players/${faceit.player.nickname}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-block font-mono text-xs text-cs-blue hover:underline"
+            >
+              View on FACEIT.com ↗
+            </a>
           </div>
-          <div className="mt-4 font-mono text-xs uppercase tracking-widest text-slate-500">
-            Skill Level {lvl} / 10
-          </div>
-          <div className="mt-2 h-2 w-full bg-cs-bg">
-            <div className="h-full bg-gradient-to-r from-emerald-500 via-cs-orange to-cs-red" style={{ width: `${lvl * 10}%` }} />
-          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:col-span-2">
+          {statEntries.map(([k, v]) => (
+            <div key={k} className="border border-cs-border bg-cs-panel p-4 clip-corner">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500">{k}</div>
+              <div className="mt-1 font-display text-2xl font-bold text-white">{v}</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:col-span-2">
-        {statEntries.map(([k, v]) => (
-          <div key={k} className="border border-cs-border bg-cs-panel p-4 clip-corner">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500">{k}</div>
-            <div className="mt-1 font-display text-2xl font-bold text-white">{v}</div>
+      {/* Per-map Faceit performance */}
+      {segments.length > 0 && (
+        <div className="border border-cs-border bg-cs-panel p-5 clip-corner">
+          <div className="mb-3 font-mono text-xs uppercase tracking-widest text-slate-500">
+            // PER-MAP FACEIT PERFORMANCE
           </div>
-        ))}
-      </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-cs-border text-left font-mono text-[10px] uppercase tracking-widest text-slate-500">
+                  <th className="py-2">Map</th>
+                  <th className="py-2 text-right">Matches</th>
+                  <th className="py-2 text-right">Win Rate</th>
+                  <th className="py-2 text-right">Avg K/D</th>
+                  <th className="py-2 text-right">Avg HS%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {segments
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      parseFloat(b.stats["Win Rate %"] || "0") -
+                      parseFloat(a.stats["Win Rate %"] || "0")
+                  )
+                  .map((s) => {
+                    const wr = parseFloat(s.stats["Win Rate %"] || "0");
+                    return (
+                      <tr key={s.label} className="border-b border-cs-border/40">
+                        <td className="py-2 font-display font-bold uppercase text-white">
+                          {s.label}
+                        </td>
+                        <td className="py-2 text-right font-mono text-slate-300">
+                          {s.stats["Matches"] || "—"}
+                        </td>
+                        <td className="py-2 text-right">
+                          <span
+                            className={`font-mono font-bold ${
+                              wr >= 60 ? "text-emerald-400" : wr >= 50 ? "text-cs-orange" : "text-cs-red"
+                            }`}
+                          >
+                            {wr.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 text-right font-mono text-cs-orange">
+                          {s.stats["Average K/D Ratio"] || "—"}
+                        </td>
+                        <td className="py-2 text-right font-mono text-cs-blue">
+                          {s.stats["Average Headshots %"] || "—"}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

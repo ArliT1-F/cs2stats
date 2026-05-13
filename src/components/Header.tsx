@@ -46,6 +46,12 @@ export function Header({
           <a href="#faceit" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
             Faceit
           </a>
+          <a href="#matches" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
+            Matches
+          </a>
+          <a href="#demos" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
+            Demos
+          </a>
         </nav>
 
         <div className="flex items-center gap-3">

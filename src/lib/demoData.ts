@@ -60,6 +60,27 @@ export interface Profile {
   profileurl: string;
 }
 
+export interface FaceitMatch {
+  matchId: string;
+  map: string;
+  score: string;
+  won: boolean | null;
+  finishedAt: number;
+  competition: string;
+  matchUrl: string;
+  demoUrl: string | null;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  kdRatio: number | null;
+  krRatio: number | null;
+  headshotsPct: number | null;
+  mvps: number | null;
+  tripleKills: number | null;
+  quadroKills: number | null;
+  pentaKills: number | null;
+}
+
 export interface FaceitData {
   player?: {
     nickname: string;
@@ -71,6 +92,7 @@ export interface FaceitData {
     lifetime?: Record<string, string>;
     segments?: Array<{ label: string; mode: string; stats: Record<string, string> }>;
   };
+  matches?: FaceitMatch[];
 }
 
 export function generateDemoStats(seed = "demo"): Stats {
@@ -144,6 +166,55 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
   const rng = seeded(seed + "_faceit");
   const elo = Math.floor(900 + rng() * 2400);
   const lvl = Math.min(10, Math.max(1, Math.floor((elo - 800) / 250) + 1));
+
+  const mapPool = ["Mirage","Dust II","Inferno","Nuke","Anubis","Ancient","Overpass","Train"];
+  const segments = mapPool.map((m) => {
+    const matches = Math.floor(rng() * 80 + 5);
+    const winRate = Math.floor(rng() * 40 + 35);
+    return {
+      label: m,
+      mode: "5v5",
+      stats: {
+        "Matches": String(matches),
+        "Wins": String(Math.floor(matches * winRate / 100)),
+        "Win Rate %": String(winRate),
+        "Average K/D Ratio": (rng() * 0.8 + 0.7).toFixed(2),
+        "Average Headshots %": String(Math.floor(rng() * 25 + 40)),
+      },
+    };
+  });
+
+  // Generate 10 fake recent matches
+  const now = Math.floor(Date.now() / 1000);
+  const matches: FaceitMatch[] = Array.from({ length: 10 }, (_, i) => {
+    const map = mapPool[Math.floor(rng() * mapPool.length)];
+    const won = rng() > 0.45;
+    const k = Math.floor(rng() * 25 + 8);
+    const d = Math.floor(rng() * 20 + 8);
+    const ourScore = won ? 13 : Math.floor(rng() * 12);
+    const theirScore = won ? Math.floor(rng() * 12) : 13;
+    return {
+      matchId: `1-${seed}-demo-${i}`,
+      map,
+      score: `${ourScore} / ${theirScore}`,
+      won,
+      finishedAt: now - i * 86400 - Math.floor(rng() * 40000),
+      competition: i < 2 ? "FACEIT 5v5 RANKED" : "FACEIT 5v5",
+      matchUrl: `https://www.faceit.com/en/cs2/room/1-${seed}-demo-${i}`,
+      demoUrl: null, // demo only available for real matches
+      kills: k,
+      deaths: d,
+      assists: Math.floor(rng() * 10),
+      kdRatio: +(k / Math.max(d, 1)).toFixed(2),
+      krRatio: +(k / 22).toFixed(2),
+      headshotsPct: Math.floor(rng() * 40 + 35),
+      mvps: Math.floor(rng() * 5),
+      tripleKills: Math.floor(rng() * 3),
+      quadroKills: Math.floor(rng() * 2),
+      pentaKills: rng() > 0.85 ? 1 : 0,
+    };
+  });
+
   return {
     player: {
       nickname: `FCT_${seed.slice(-5)}`,
@@ -160,6 +231,8 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
         "Longest Win Streak": String(Math.floor(rng() * 12 + 2)),
         "Current Win Streak": String(Math.floor(rng() * 5)),
       },
+      segments,
     },
+    matches,
   };
 }
