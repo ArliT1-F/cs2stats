@@ -60,6 +60,40 @@ export interface Profile {
   profileurl: string;
 }
 
+export interface FaceitMatchPlayer {
+  playerId: string;
+  nickname: string;
+  avatar?: string | null;
+  country?: string | null;
+  skillLevel?: number | null;
+  elo?: number | null;
+  isMe: boolean;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  kdRatio: number | null;
+  krRatio: number | null;
+  adr: number | null;
+  headshots: number | null;
+  headshotsPct: number | null;
+  mvps: number | null;
+  tripleKills: number | null;
+  quadroKills: number | null;
+  pentaKills: number | null;
+}
+
+export interface FaceitMatchTeam {
+  teamId: string;
+  name: string;
+  avatar?: string | null;
+  score: number | null;
+  won: boolean | null;
+  firstHalfScore: number | null;
+  secondHalfScore: number | null;
+  overtimeScore: number | null;
+  players: FaceitMatchPlayer[];
+}
+
 export interface FaceitMatch {
   matchId: string;
   map: string;
@@ -69,11 +103,14 @@ export interface FaceitMatch {
   competition: string;
   matchUrl: string;
   demoUrl: string | null;
+  teams: FaceitMatchTeam[];
+  // Convenience: my own stats
   kills: number | null;
   deaths: number | null;
   assists: number | null;
   kdRatio: number | null;
   krRatio: number | null;
+  adr: number | null;
   headshotsPct: number | null;
   mvps: number | null;
   tripleKills: number | null;
@@ -184,15 +221,86 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
     };
   });
 
+  // Pool of fake nicknames + countries for demo team rosters
+  const fakeNicks = [
+    "ZyW00", "Dust2Diver", "AwperKai", "TacoTactics", "CrispyClutch",
+    "FlashFred", "NinjaDef", "RushBro", "ScopeKing", "EcoEnjoyer",
+    "BananaCT", "MidControl", "EntryFraggin", "LurkLord", "PistolPete",
+    "OneTapWonder", "SmokeMaster", "FlashBangBoy", "AwpAddict", "RetakeRiot",
+  ];
+  const countries = ["us","de","se","ru","br","fi","dk","pl","fr","gb","ca","no"];
+
+  const buildPlayer = (idx: number, isMe: boolean, totalKills: number, rounds: number): FaceitMatchPlayer => {
+    const nick = isMe ? `FCT_${seed.slice(-5)}` : fakeNicks[idx % fakeNicks.length] + Math.floor(rng() * 99);
+    const k = totalKills;
+    const d = Math.floor(8 + rng() * 22);
+    const a = Math.floor(rng() * 8);
+    const adr = Math.floor(40 + rng() * 80);
+    const lvl = Math.min(10, Math.max(1, lvl_ + Math.floor((rng() - 0.5) * 4)));
+    return {
+      playerId: `demo-player-${seed}-${idx}-${isMe ? "me" : "x"}`,
+      nickname: nick,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(nick)}&backgroundColor=f59e0b,4fb3ff,ef4444,22c55e`,
+      country: countries[Math.floor(rng() * countries.length)],
+      skillLevel: lvl,
+      elo: 800 + lvl * 250 + Math.floor(rng() * 200),
+      isMe,
+      kills: k, deaths: d, assists: a,
+      kdRatio: +(k / Math.max(d, 1)).toFixed(2),
+      krRatio: +(k / Math.max(rounds, 1)).toFixed(2),
+      adr,
+      headshots: Math.floor(k * (0.35 + rng() * 0.4)),
+      headshotsPct: Math.floor(35 + rng() * 35),
+      mvps: Math.floor(rng() * 5),
+      tripleKills: Math.floor(rng() * 3),
+      quadroKills: rng() > 0.7 ? 1 : 0,
+      pentaKills: rng() > 0.92 ? 1 : 0,
+    };
+  };
+
+  const lvl_ = lvl;
+
+  const buildTeam = (factionId: string, name: string, score: number, won: boolean, includesMe: boolean, rounds: number): FaceitMatchTeam => {
+    const teamSize = 5;
+    const baseKillCount = Math.floor(rounds * 0.8);
+    const players: FaceitMatchPlayer[] = Array.from({ length: teamSize }, (_, i) => {
+      const isMe = includesMe && i === 0;
+      const variance = Math.floor((rng() - 0.5) * 18);
+      const k = Math.max(2, baseKillCount / teamSize + variance);
+      return buildPlayer(i + (factionId === "f2" ? 5 : 0), isMe, Math.floor(k), rounds);
+    });
+    players.sort((a, b) => (b.kills || 0) - (a.kills || 0));
+    return {
+      teamId: factionId,
+      name,
+      avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(name)}&backgroundColor=11172a`,
+      score,
+      won,
+      firstHalfScore: Math.floor(score * 0.5 + (rng() - 0.5) * 4),
+      secondHalfScore: Math.floor(score * 0.5),
+      overtimeScore: null,
+      players,
+    };
+  };
+
+  const teamNames = [
+    ["team OMEGA", "team SIGMA"], ["VIKINGS", "RONIN"], ["NOVA", "PULSE"],
+    ["APEX", "ZENITH"], ["FALLEN", "RISEN"], ["TITAN", "GIANTS"],
+    ["RECON", "STRIKE"], ["GHOST", "PHANTOM"], ["FROST", "BLAZE"], ["CRIMSON", "AZURE"],
+  ];
+
   // Generate 10 fake recent matches
   const now = Math.floor(Date.now() / 1000);
   const matches: FaceitMatch[] = Array.from({ length: 10 }, (_, i) => {
     const map = mapPool[Math.floor(rng() * mapPool.length)];
     const won = rng() > 0.45;
-    const k = Math.floor(rng() * 25 + 8);
-    const d = Math.floor(rng() * 20 + 8);
     const ourScore = won ? 13 : Math.floor(rng() * 12);
     const theirScore = won ? Math.floor(rng() * 12) : 13;
+    const totalRounds = ourScore + theirScore;
+    const [aName, bName] = teamNames[i % teamNames.length];
+    const teamA = buildTeam("f1", aName, ourScore, won, true, totalRounds);
+    const teamB = buildTeam("f2", bName, theirScore, !won, false, totalRounds);
+    const me = teamA.players.find((p) => p.isMe)!;
     return {
       matchId: `1-${seed}-demo-${i}`,
       map,
@@ -201,17 +309,12 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       finishedAt: now - i * 86400 - Math.floor(rng() * 40000),
       competition: i < 2 ? "FACEIT 5v5 RANKED" : "FACEIT 5v5",
       matchUrl: `https://www.faceit.com/en/cs2/room/1-${seed}-demo-${i}`,
-      demoUrl: null, // demo only available for real matches
-      kills: k,
-      deaths: d,
-      assists: Math.floor(rng() * 10),
-      kdRatio: +(k / Math.max(d, 1)).toFixed(2),
-      krRatio: +(k / 22).toFixed(2),
-      headshotsPct: Math.floor(rng() * 40 + 35),
-      mvps: Math.floor(rng() * 5),
-      tripleKills: Math.floor(rng() * 3),
-      quadroKills: Math.floor(rng() * 2),
-      pentaKills: rng() > 0.85 ? 1 : 0,
+      demoUrl: null,
+      teams: [teamA, teamB],
+      kills: me.kills, deaths: me.deaths, assists: me.assists,
+      kdRatio: me.kdRatio, krRatio: me.krRatio, adr: me.adr,
+      headshotsPct: me.headshotsPct, mvps: me.mvps,
+      tripleKills: me.tripleKills, quadroKills: me.quadroKills, pentaKills: me.pentaKills,
     };
   });
 

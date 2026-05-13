@@ -33,25 +33,19 @@ export function Header({
           </div>
         </a>
 
-        <nav className="hidden items-center gap-6 md:flex">
-          <a href="#overview" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Overview
-          </a>
-          <a href="#weapons" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Weapons
-          </a>
-          <a href="#maps" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Maps
-          </a>
-          <a href="#faceit" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Faceit
-          </a>
-          <a href="#matches" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Matches
-          </a>
-          <a href="#demos" className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange">
-            Demos
-          </a>
+        <nav className="hidden items-center gap-5 lg:flex">
+          <NavGroup label="Steam" color="cs-blue">
+            <NavLink href="#overview">Overview</NavLink>
+            <NavLink href="#weapons">Weapons</NavLink>
+            <NavLink href="#maps">Maps</NavLink>
+          </NavGroup>
+          <span className="text-cs-border">·</span>
+          <NavGroup label="FACEIT" color="cs-orange">
+            <NavLink href="#faceit">Profile</NavLink>
+            <NavLink href="#faceit-maps">Maps</NavLink>
+            <NavLink href="#matches">Matches</NavLink>
+            <NavLink href="#demos">Demos</NavLink>
+          </NavGroup>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -97,6 +91,29 @@ export function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function NavGroup({ label, color, children }: { label: string; color: "cs-blue" | "cs-orange"; children: React.ReactNode }) {
+  const colorClass = color === "cs-blue" ? "text-cs-blue/70" : "text-cs-orange/70";
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`font-mono text-[10px] uppercase tracking-widest ${colorClass}`}>
+        {label} //
+      </span>
+      <div className="flex items-center gap-3">{children}</div>
+    </div>
+  );
+}
+
+function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      className="font-display text-sm font-semibold uppercase tracking-wider text-slate-400 transition hover:text-cs-orange"
+    >
+      {children}
+    </a>
   );
 }
 

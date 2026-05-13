@@ -3,9 +3,12 @@ import { OverviewSection } from "./OverviewSection";
 import { WeaponsSection } from "./WeaponsSection";
 import { MapsSection } from "./MapsSection";
 import { FaceitSection } from "./FaceitSection";
+import { FaceitAggregate } from "./FaceitAggregate";
+import { FaceitMapPerformance } from "./FaceitMapPerformance";
 import { MatchHistory } from "./MatchHistory";
 import { DemosSection } from "./DemosSection";
 import { ProfileBanner } from "./ProfileBanner";
+import { SourceBadge } from "./SourceBadge";
 
 export function Dashboard({
   profile,
@@ -28,33 +31,49 @@ export function Dashboard({
 
       <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
 
-      <section id="overview" className="mt-10 scroll-mt-20">
-        <SectionHeader number="01" title="Performance Overview" subtitle="Lifetime CS2 statistics" />
+      {/* ─── STEAM (Lifetime: Premier + Casual + Deathmatch combined) ─── */}
+      <SourceDivider source="steam" label="Steam Lifetime Data" note="Includes Premier, Competitive, Casual & Deathmatch · Steam does not separate by mode" />
+
+      <section id="overview" className="mt-6 scroll-mt-20">
+        <SectionHeader number="01" title="Steam Overview" subtitle="Lifetime CS2 statistics from Steam" badge="steam" />
         <OverviewSection stats={stats} />
       </section>
 
       <section id="weapons" className="mt-12 scroll-mt-20">
-        <SectionHeader number="02" title="Weapon Arsenal" subtitle="Kills, accuracy, and HS% per weapon" />
+        <SectionHeader number="02" title="Steam Weapon Arsenal" subtitle="Lifetime kills, accuracy & HS% per weapon" badge="steam" />
         <WeaponsSection weapons={stats.weapons} />
       </section>
 
       <section id="maps" className="mt-12 scroll-mt-20">
-        <SectionHeader number="03" title="Map Performance" subtitle="Win-rate and rounds played" />
+        <SectionHeader number="03" title="Steam Map Performance" subtitle="Lifetime win-rate and rounds played" badge="steam" />
         <MapsSection maps={stats.maps} />
       </section>
 
-      <section id="faceit" className="mt-12 scroll-mt-20">
-        <SectionHeader number="04" title="Faceit Profile" subtitle="Competitive ranking & per-map performance" />
+      {/* ─── FACEIT (Competitive matchmaking only — kept separate from Steam) ─── */}
+      <SourceDivider source="faceit" label="FACEIT Data" note="Competitive matchmaking only · Never combined with Steam stats above" />
+
+      <section id="faceit" className="mt-6 scroll-mt-20">
+        <SectionHeader number="04" title="FACEIT Profile" subtitle="Skill level, ELO & per-map breakdown" badge="faceit" />
         <FaceitSection faceit={faceit} />
       </section>
 
+      <section id="faceit-stats" className="mt-12 scroll-mt-20">
+        <SectionHeader number="05" title="FACEIT Aggregate Stats" subtitle="Lifetime + recent form, separately tracked" badge="faceit" />
+        <FaceitAggregate faceit={faceit} />
+      </section>
+
+      <section id="faceit-maps" className="mt-12 scroll-mt-20">
+        <SectionHeader number="06" title="FACEIT Map Performance" subtitle="Per-map FACEIT stats — completely separate from Steam maps" badge="faceit" />
+        <FaceitMapPerformance faceit={faceit} />
+      </section>
+
       <section id="matches" className="mt-12 scroll-mt-20">
-        <SectionHeader number="05" title="Match History" subtitle="Recent FACEIT matches with full breakdown" />
+        <SectionHeader number="07" title="Match History" subtitle="Recent FACEIT matches — click for full scoreboard" badge="faceit" />
         <MatchHistory matches={faceit?.matches} />
       </section>
 
       <section id="demos" className="mt-12 scroll-mt-20">
-        <SectionHeader number="06" title="Match Demos" subtitle="Download & watch CS2 replay files" />
+        <SectionHeader number="08" title="Match Demos" subtitle="Download & watch CS2 replay files" badge="faceit" />
         <DemosSection matches={faceit?.matches} />
       </section>
 
@@ -160,18 +179,47 @@ function DemoBanner({ reason, message }: { reason?: string | null; message?: str
   );
 }
 
-function SectionHeader({ number, title, subtitle }: { number: string; title: string; subtitle: string }) {
+function SectionHeader({
+  number,
+  title,
+  subtitle,
+  badge,
+}: {
+  number: string;
+  title: string;
+  subtitle: string;
+  badge?: "steam" | "faceit";
+}) {
   return (
-    <div className="mb-5 flex items-end justify-between border-b border-cs-border pb-3">
-      <div>
+    <div className="mb-5 flex items-end justify-between gap-3 border-b border-cs-border pb-3">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-cs-orange">
           <span>{number}</span>
           <span className="h-px w-8 bg-cs-orange/40" />
-          <span className="text-slate-500">{subtitle}</span>
+          <span className="truncate text-slate-500">{subtitle}</span>
         </div>
         <h2 className="mt-1 font-display text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
           {title}
         </h2>
+      </div>
+      {badge && <SourceBadge source={badge} />}
+    </div>
+  );
+}
+
+function SourceDivider({ source, label, note }: { source: "steam" | "faceit"; label: string; note: string }) {
+  const accent = source === "steam" ? "border-cs-blue/40 bg-cs-blue/5" : "border-cs-orange/40 bg-cs-orange/5";
+  const accentText = source === "steam" ? "text-cs-blue" : "text-cs-orange";
+  return (
+    <div className={`mt-12 border-l-4 ${accent} px-4 py-3 clip-corner`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <SourceBadge source={source} />
+        <div className={`font-display text-lg font-bold uppercase tracking-wider ${accentText}`}>
+          {label}
+        </div>
+      </div>
+      <div className="mt-1 font-mono text-[11px] uppercase tracking-wider text-slate-500">
+        // {note}
       </div>
     </div>
   );

@@ -51,7 +51,6 @@ async function fetchFaceit(steamId, key) {
     const pid = player.player_id;
 
     // Fetch lifetime stats (with per-map segments) and recent history in parallel.
-    // The history endpoint returns 20 most recent CS2 matches.
     const [statsResp, historyResp] = await Promise.all([
       fetch(`https://open.faceit.com/data/v4/players/${pid}/stats/cs2`, { headers }),
       fetch(`https://open.faceit.com/data/v4/players/${pid}/history?game=cs2&offset=0&limit=20`, { headers }),
@@ -60,23 +59,11 @@ async function fetchFaceit(steamId, key) {
     const stats = statsResp.ok ? await statsResp.json() : null;
     const historyJson = historyResp.ok ? await historyResp.json() : null;
 
-    // For each recent match, fetch detailed stats so we can show K/D, score, etc.
-    // We limit to the 10 most recent matches to stay within reasonable response time.
+    // For each recent match: fetch BOTH /matches/{id} (teams + roster + ELOs)
+    // AND /matches/{id}/stats (leaderboard data) in parallel. We do 10 most recent.
     const matches = (historyJson?.items || []).slice(0, 10);
     const enrichedMatches = await Promise.all(
-      matches.map(async (m) => {
-        try {
-          const ms = await fetch(
-            `https://open.faceit.com/data/v4/matches/${m.match_id}/stats`,
-            { headers }
-          );
-          if (!ms.ok) return summarizeMatch(m, pid, null);
-          const sj = await ms.json();
-          return summarizeMatch(m, pid, sj);
-        } catch {
-          return summarizeMatch(m, pid, null);
-        }
-      })
+      matches.map((m) => fetchFullMatch(m, pid, headers))
     );
 
     return { player, stats, matches: enrichedMatches };
@@ -85,38 +72,142 @@ async function fetchFaceit(steamId, key) {
   }
 }
 
-// Convert raw Faceit match + stats payloads into a flat shape the UI uses.
-function summarizeMatch(match, playerId, statsJson) {
+async function fetchFullMatch(match, playerId, headers) {
+  const [detailResp, statsResp] = await Promise.all([
+    fetch(`https://open.faceit.com/data/v4/matches/${match.match_id}`, { headers }).catch(() => null),
+    fetch(`https://open.faceit.com/data/v4/matches/${match.match_id}/stats`, { headers }).catch(() => null),
+  ]);
+  const detail = detailResp?.ok ? await detailResp.json() : null;
+  const statsJson = statsResp?.ok ? await statsResp.json() : null;
+  return summarizeMatch(match, playerId, detail, statsJson);
+}
+
+function buildPlayerLookup(detail) {
+  // detail.teams = { faction1: { roster: [{player_id, nickname, avatar, game_skill_level, ...}] }, faction2: ... }
+  const lookup = {};
+  if (!detail?.teams) return lookup;
+  for (const [factionId, t] of Object.entries(detail.teams)) {
+    const roster = t.roster || [];
+    for (const p of roster) {
+      lookup[p.player_id] = {
+        nickname: p.nickname,
+        avatar: p.avatar || null,
+        country: p.country || null,
+        skillLevel: p.game_skill_level || p.skill_level || null,
+        elo: p.elo || null,
+        factionId,
+        factionName: t.name || (factionId === "faction1" ? "Team A" : "Team B"),
+        factionAvatar: t.avatar || null,
+      };
+    }
+  }
+  return lookup;
+}
+
+function summarizeMatch(match, playerId, detail, statsJson) {
   const round = statsJson?.rounds?.[0];
   const map = round?.round_stats?.["Map"] || match.voting?.map?.pick?.[0] || "—";
-  const score = round?.round_stats?.["Score"] || "—";
   const winnerTeamId = round?.round_stats?.["Winner"];
 
-  // Find which team the player was on
-  let myTeam = null;
-  let myStats = null;
-  let opponentName = "—";
+  // Player roster lookup keyed by player_id with avatar + skill level + ELO
+  const lookup = buildPlayerLookup(detail);
+
+  // Build the two teams with full leaderboards
+  const teams = [];
   if (round?.teams) {
     for (const t of round.teams) {
-      const me = t.players?.find((p) => p.player_id === playerId);
-      if (me) {
-        myTeam = t;
-        myStats = me.player_stats || {};
-      } else {
-        opponentName = t.team_stats?.Team || opponentName;
-      }
+      const teamPlayers = (t.players || []).map((p) => {
+        const meta = lookup[p.player_id] || {};
+        const ps = p.player_stats || {};
+        return {
+          playerId: p.player_id,
+          nickname: p.nickname || meta.nickname || "—",
+          avatar: meta.avatar,
+          country: meta.country,
+          skillLevel: meta.skillLevel,
+          elo: meta.elo,
+          isMe: p.player_id === playerId,
+          // CS2-style scoreboard stats
+          kills: numOrNull(ps["Kills"]),
+          deaths: numOrNull(ps["Deaths"]),
+          assists: numOrNull(ps["Assists"]),
+          kdRatio: numOrNull(ps["K/D Ratio"]),
+          krRatio: numOrNull(ps["K/R Ratio"]),
+          adr: numOrNull(ps["ADR"]) ?? numOrNull(ps["Damage"]) ?? null,
+          headshots: numOrNull(ps["Headshots"]),
+          headshotsPct: numOrNull(ps["Headshots %"]),
+          mvps: numOrNull(ps["MVPs"]),
+          tripleKills: numOrNull(ps["Triple Kills"]),
+          quadroKills: numOrNull(ps["Quadro Kills"]),
+          pentaKills: numOrNull(ps["Penta Kills"]),
+        };
+      });
+      // Sort scoreboard by kills desc (CS2 style)
+      teamPlayers.sort((a, b) => (b.kills || 0) - (a.kills || 0));
+
+      const factionId = teamPlayers[0]?.playerId
+        ? lookup[teamPlayers[0].playerId]?.factionId
+        : null;
+
+      teams.push({
+        teamId: t.team_id,
+        name: t.team_stats?.["Team"] || lookup[teamPlayers[0]?.playerId]?.factionName || "Team",
+        avatar: factionId ? Object.values(detail?.teams || {}).find((d) => d.faction_id === factionId)?.avatar
+                          : null,
+        score: numOrNull(t.team_stats?.["Final Score"]) ?? numOrNull(t.team_stats?.["Score"]) ?? null,
+        won: t.team_stats?.["Team Win"] === "1" || t.team_id === winnerTeamId,
+        firstHalfScore: numOrNull(t.team_stats?.["First Half Score"]),
+        secondHalfScore: numOrNull(t.team_stats?.["Second Half Score"]),
+        overtimeScore: numOrNull(t.team_stats?.["Overtime score"]),
+        players: teamPlayers,
+      });
     }
   }
 
-  // Fallback team info from match payload if stats aren't available
-  if (!myTeam && match.teams) {
-    for (const [, t] of Object.entries(match.teams)) {
-      const me = t.players?.find((p) => p.player_id === playerId);
-      if (me) myTeam = { team_id: t.team_id, nickname: t.nickname };
+  // Fallback when stats aren't available — use detail.teams for at least the roster
+  if (teams.length === 0 && detail?.teams) {
+    for (const [, t] of Object.entries(detail.teams)) {
+      const players = (t.roster || []).map((p) => ({
+        playerId: p.player_id,
+        nickname: p.nickname,
+        avatar: p.avatar,
+        country: p.country,
+        skillLevel: p.game_skill_level || p.skill_level,
+        elo: p.elo,
+        isMe: p.player_id === playerId,
+        kills: null, deaths: null, assists: null, kdRatio: null,
+        krRatio: null, adr: null, headshots: null, headshotsPct: null,
+        mvps: null, tripleKills: null, quadroKills: null, pentaKills: null,
+      }));
+      teams.push({
+        teamId: t.faction_id,
+        name: t.name || "Team",
+        avatar: t.avatar || null,
+        score: null,
+        won: null,
+        firstHalfScore: null,
+        secondHalfScore: null,
+        overtimeScore: null,
+        players,
+      });
     }
   }
 
-  const won = myTeam && winnerTeamId ? myTeam.team_id === winnerTeamId : null;
+  // Find the player on either team for top-level summary
+  let myTeam = null;
+  let myStats = null;
+  for (const t of teams) {
+    const me = t.players.find((p) => p.isMe);
+    if (me) {
+      myTeam = t;
+      myStats = me;
+      break;
+    }
+  }
+  const won = myTeam ? !!myTeam.won : null;
+  const score = teams.length === 2
+    ? `${teams[0].score ?? "—"} / ${teams[1].score ?? "—"}`
+    : "—";
 
   return {
     matchId: match.match_id,
@@ -124,21 +215,29 @@ function summarizeMatch(match, playerId, statsJson) {
     score,
     won,
     finishedAt: match.finished_at || match.started_at,
-    competition: match.competition_name || "FACEIT",
+    competition: match.competition_name || detail?.competition_name || "FACEIT",
     matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
-    demoUrl: match.demo_url?.[0] || null, // Faceit demo download URL (.dem.gz)
-    // Per-player stats (only present if stats endpoint succeeded)
-    kills: myStats?.["Kills"] ? +myStats["Kills"] : null,
-    deaths: myStats?.["Deaths"] ? +myStats["Deaths"] : null,
-    assists: myStats?.["Assists"] ? +myStats["Assists"] : null,
-    kdRatio: myStats?.["K/D Ratio"] ? +myStats["K/D Ratio"] : null,
-    krRatio: myStats?.["K/R Ratio"] ? +myStats["K/R Ratio"] : null,
-    headshotsPct: myStats?.["Headshots %"] ? +myStats["Headshots %"] : null,
-    mvps: myStats?.["MVPs"] ? +myStats["MVPs"] : null,
-    tripleKills: myStats?.["Triple Kills"] ? +myStats["Triple Kills"] : null,
-    quadroKills: myStats?.["Quadro Kills"] ? +myStats["Quadro Kills"] : null,
-    pentaKills: myStats?.["Penta Kills"] ? +myStats["Penta Kills"] : null,
+    demoUrl: match.demo_url?.[0] || detail?.demo_url?.[0] || null,
+    teams,
+    // Convenience: my own stats at top level (used in compact match list)
+    kills: myStats?.kills ?? null,
+    deaths: myStats?.deaths ?? null,
+    assists: myStats?.assists ?? null,
+    kdRatio: myStats?.kdRatio ?? null,
+    krRatio: myStats?.krRatio ?? null,
+    adr: myStats?.adr ?? null,
+    headshotsPct: myStats?.headshotsPct ?? null,
+    mvps: myStats?.mvps ?? null,
+    tripleKills: myStats?.tripleKills ?? null,
+    quadroKills: myStats?.quadroKills ?? null,
+    pentaKills: myStats?.pentaKills ?? null,
   };
+}
+
+function numOrNull(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = +v;
+  return Number.isFinite(n) ? n : null;
 }
 
 function transformSteamStats(rawStats) {
