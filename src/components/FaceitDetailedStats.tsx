@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { FaceitData, FaceitMatch, LightHistoryItem } from "../lib/demoData";
 import { getMapBanner } from "../lib/mapPool";
 import {
@@ -314,25 +314,12 @@ function PlayActivity({ activity }: { activity: LightHistoryItem[] }) {
           <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase text-slate-500">
             <span>Less</span>
             {[0,1,2,3,4].map((i) => (
-              <span key={i} className="h-3 w-3 border border-cs-border" style={{ background: heatColor(i) }} />
+              <span key={i} className="h-2.5 w-2.5 border border-cs-border" style={{ background: heatColor(i) }} />
             ))}
             <span>More</span>
           </div>
         </div>
-        <div className="grid grid-cols-12 gap-1">
-          {Array.from({ length: 12 }, (_, w) => (
-            <div key={w} className="grid grid-rows-7 gap-1">
-              {stats.heatmap.slice(w * 7, w * 7 + 7).map((cell) => (
-                <div
-                  key={cell.date}
-                  className="aspect-square w-full"
-                  style={{ background: heatColor(cell.intensity) }}
-                  title={`${cell.date}: ${cell.matches} match${cell.matches === 1 ? "" : "es"}`}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
+        <ActivityHeatmap heatmap={stats.heatmap} />
       </div>
     </div>
   );
@@ -353,6 +340,113 @@ function Legend() {
     <div className="mt-2 flex items-center gap-4 font-mono text-[10px] uppercase text-slate-500">
       <span className="flex items-center gap-1.5"><span className="h-2 w-3" style={{ background: "#1f2942" }} /> Matches played</span>
       <span className="flex items-center gap-1.5"><span className="h-2 w-3" style={{ background: "#f59e0b" }} /> Wins</span>
+    </div>
+  );
+}
+
+// Heatmap renderer with day-of-week labels (left), month labels (top), and a
+// custom React hover tooltip (browser title= is too laggy and ugly).
+// Cells are rendered with explicit small px sizing so the grid never feels
+// "suffocating" on wide layouts.
+function ActivityHeatmap({ heatmap }: { heatmap: Array<{ date: string; matches: number; intensity: number }> }) {
+  // Build columns: 12 weeks × 7 days. heatmap is laid out [w0d0, w0d1...w0d6, w1d0...]
+  const columns: Array<Array<{ date: string; matches: number; intensity: number }>> = [];
+  for (let w = 0; w < 12; w++) {
+    columns.push(heatmap.slice(w * 7, w * 7 + 7));
+  }
+
+  // Month labels: show the month name above the first column where it begins
+  // (or the first cell of any new month going left → right).
+  const monthLabels: (string | null)[] = columns.map((col, i) => {
+    const first = col[0];
+    if (!first) return null;
+    const d = new Date(first.date);
+    const monthName = d.toLocaleString("en-US", { month: "short" });
+    if (i === 0) return monthName;
+    const prevFirst = columns[i - 1][0];
+    if (!prevFirst) return monthName;
+    const prevMonth = new Date(prevFirst.date).getMonth();
+    return d.getMonth() !== prevMonth ? monthName : null;
+  });
+
+  const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const [hover, setHover] = useState<{ x: number; y: number; cell: { date: string; matches: number } } | null>(null);
+
+  return (
+    <div className="relative">
+      <div className="flex">
+        {/* Day-of-week labels (left axis). Show every other row to save space. */}
+        <div className="mr-1.5 flex flex-col justify-between pr-1 pt-4 font-mono text-[9px] uppercase tracking-widest text-slate-500">
+          {dayLabels.map((d, i) => (
+            <div key={d} className="h-3 leading-3">
+              {i % 2 === 1 ? d : ""}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1">
+          {/* Month labels (top axis) */}
+          <div className="mb-1 flex gap-0.5">
+            {monthLabels.map((label, i) => (
+              <div key={i} className="h-3 w-3 font-mono text-[9px] uppercase tracking-widest text-slate-500">
+                {label || ""}
+              </div>
+            ))}
+          </div>
+
+          {/* Cell grid — fixed small cell size, no aspect-ratio expansion */}
+          <div className="flex gap-0.5">
+            {columns.map((col, ci) => (
+              <div key={ci} className="flex flex-col gap-0.5">
+                {col.map((cell) => {
+                  const d = new Date(cell.date);
+                  const dayName = d.toLocaleString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+                  return (
+                    <div
+                      key={cell.date}
+                      className="h-3 w-3 cursor-pointer transition hover:ring-1 hover:ring-cs-orange"
+                      style={{ background: heatColor(cell.intensity) }}
+                      onMouseEnter={(e) => {
+                        try {
+                          const target = e.currentTarget as HTMLDivElement;
+                          const container = target.closest(".relative") as HTMLDivElement | null;
+                          if (!container) return;
+                          const rect = target.getBoundingClientRect();
+                          const containerRect = container.getBoundingClientRect();
+                          setHover({
+                            x: rect.left - containerRect.left + rect.width / 2,
+                            y: rect.top - containerRect.top - 8,
+                            cell: { date: dayName, matches: cell.matches },
+                          });
+                        } catch {
+                          // Defensive — never let a tooltip crash the app
+                        }
+                      }}
+                      onMouseLeave={() => setHover(null)}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hover tooltip */}
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap border border-cs-orange/60 bg-cs-bg/95 px-2 py-1 backdrop-blur"
+          style={{ left: hover.x, top: hover.y }}
+        >
+          <div className="font-display text-xs font-bold text-white">
+            {hover.cell.matches} {hover.cell.matches === 1 ? "match" : "matches"}
+          </div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400">
+            {hover.cell.date}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
