@@ -102,7 +102,15 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     <div className="space-y-5">
       {/* Top bar: summary + price-source toggle */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <SummaryCard label="Total Items" value={data.totalItems?.toLocaleString() || "0"} />
+        <SummaryCard
+          label="Items Loaded"
+          value={
+            data.totalInventoryCount && data.totalInventoryCount !== data.totalItems
+              ? `${data.totalItems?.toLocaleString()} / ${data.totalInventoryCount.toLocaleString()}`
+              : data.totalItems?.toLocaleString() || "0"
+          }
+          accent={data.partial ? "text-cs-orange" : undefined}
+        />
         <SummaryCard label="Categories" value={categoriesPresent.length} />
         <SummaryCard
           label="Priced"
@@ -130,10 +138,18 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       {/* Partial-inventory warning */}
       {data.partial && (
         <div className="border border-cs-orange/40 bg-cs-orange/10 p-3 text-sm clip-corner">
-          <div className="font-display font-bold uppercase tracking-wider text-cs-orange">⚠ Partial inventory</div>
-          <div className="text-slate-300">
-            Steam stopped responding mid-fetch (rate-limited). Showing first {data.totalItems} items.
-            Refresh in a minute to retry.
+          <div className="font-display font-bold uppercase tracking-wider text-cs-orange">
+            ⚠ Partial inventory ({data.totalItems} of {data.totalInventoryCount} items loaded)
+          </div>
+          <div className="mt-1 text-slate-300">
+            Steam rate-limited the fetch before all pages could be retrieved.
+            Wait ~60 seconds and refresh — the next attempt usually completes.
+          </div>
+          <div className="mt-2 font-mono text-[11px] text-slate-500">
+            For full diagnostics, visit{" "}
+            <a href="/api/inventory?debug=1" target="_blank" rel="noopener noreferrer" className="text-cs-blue underline">
+              /api/inventory?debug=1
+            </a>
           </div>
         </div>
       )}
