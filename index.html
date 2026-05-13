@@ -43,8 +43,71 @@
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23f59e0b'/%3E%3Ctext x='50%25' y='54%25' font-family='Arial Black,sans-serif' font-size='32' font-weight='900' text-anchor='middle' fill='%230a0e1a'%3ECS%3C/text%3E%3C/svg%3E" />
   </head>
-  <body class="bg-[#0a0e1a]">
-    <div id="root"></div>
+  <body style="background:#0a0e1a;color:#e2e8f0;font-family:system-ui,sans-serif;margin:0;">
+    <!-- Pre-React diagnostic shell. If JS never runs, the user sees a clear
+         message instead of a blank page. If JS errors before React mounts,
+         the inline error handler below captures it and renders the message
+         right here in plain DOM (no React needed). -->
+    <div id="root">
+      <div id="boot-status" style="padding:24px;font-family:ui-monospace,Menlo,monospace;color:#94a3b8;font-size:13px;line-height:1.6;">
+        <div style="color:#f59e0b;font-weight:bold;letter-spacing:.1em;">// CS2 TRACKER</div>
+        <div style="margin-top:8px;">Loading application…</div>
+        <noscript>
+          <div style="margin-top:16px;padding:12px;border:1px solid #ef4444;color:#ef4444;">
+            JavaScript is required to run this application.
+          </div>
+        </noscript>
+      </div>
+    </div>
+
+    <!-- Pre-React error capture. Catches anything that crashes before React
+         even has a chance to mount (script parse errors, top-level throws,
+         module load failures). On mobile, where the dev console isn't easily
+         accessible, this is the only way to see what went wrong. -->
+    <script>
+      (function () {
+        var boot = document.getElementById("boot-status");
+        function showError(label, info) {
+          if (!boot) return;
+          boot.innerHTML =
+            '<div style="padding:24px;font-family:ui-monospace,Menlo,monospace;color:#e2e8f0;font-size:13px;line-height:1.5;">' +
+            '<div style="color:#ef4444;font-weight:bold;letter-spacing:.1em;">// PRE-REACT ERROR — ' + label + '</div>' +
+            '<div style="margin-top:12px;padding:12px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);color:#fca5a5;word-break:break-word;white-space:pre-wrap;">' +
+            info +
+            '</div>' +
+            '<div style="margin-top:16px;color:#64748b;">Reload the page or screenshot this and report it.</div>' +
+            '</div>';
+        }
+        window.addEventListener("error", function (e) {
+          var msg = (e && (e.message || (e.error && e.error.message))) || "Unknown error";
+          var src = (e && e.filename) ? "\\nat " + e.filename + ":" + e.lineno + ":" + e.colno : "";
+          var stk = (e && e.error && e.error.stack) ? "\\n\\n" + e.error.stack : "";
+          showError("script error", msg + src + stk);
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var reason = e && e.reason;
+          var msg = reason && (reason.message || String(reason)) || "Unknown rejection";
+          var stk = reason && reason.stack ? "\\n\\n" + reason.stack : "";
+          showError("unhandled promise rejection", msg + stk);
+        });
+        // If the React mount never replaces #boot-status within 8s, surface it.
+        setTimeout(function () {
+          if (boot && boot.parentNode && document.getElementById("boot-status")) {
+            boot.innerHTML =
+              '<div style="padding:24px;font-family:ui-monospace,Menlo,monospace;color:#e2e8f0;font-size:13px;line-height:1.5;">' +
+              '<div style="color:#f59e0b;font-weight:bold;letter-spacing:.1em;">// STILL LOADING…</div>' +
+              '<div style="margin-top:12px;color:#94a3b8;">React has not mounted after 8 seconds. ' +
+              'This usually means the JS bundle failed to load or parse. ' +
+              'Try a hard refresh (pull down on the page).</div>' +
+              '<div style="margin-top:12px;color:#64748b;font-size:11px;">' +
+              'UA: ' + navigator.userAgent +
+              '</div>' +
+              '</div>';
+          }
+        }, 8000);
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
