@@ -93,11 +93,6 @@ function transformSteamStats(rawStats) {
     .filter((w) => w.kills > 0)
     .sort((a, b) => b.kills - a.kills);
 
-  const mapNames = [
-    "cs_assault","cs_italy","cs_militia","cs_office",
-    "de_aztec","de_cbble","de_dust","de_dust2","de_inferno","de_nuke",
-    "de_train","de_mirage","de_vertigo","de_ancient","de_anubis","de_overpass"
-  ];
   // Only include maps from the current CS2 Active Duty + Reserve pool.
   // Legacy CS:GO maps (assault, militia, dust, cbble, aztec) are filtered out
   // even though Steam still returns stats for them.

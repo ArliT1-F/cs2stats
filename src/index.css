@@ -2,86 +2,59 @@
 @import "tailwindcss";
 
 @theme {
-    --color-cs-bg: #0a0e1a;
-    --color-cs-panel: #11172a;
-    --color-cs-border: #1f2942;
-    --color-cs-orange: #f59e0b;
-    --color-cs-blue: #4fb3ff;
-    --color-cs-red: #ef4444;
-    --font-display: "Rajdhani", "Inter", system-ui, sans-serif;
+  --color-cs-bg: #0a0e1a;
+  --color-cs-panel: #11172a;
+  --color-cs-border: #1f2942;
+  --color-cs-orange: #f59e0b;
+  --color-cs-blue: #4fb3ff;
+  --color-cs-red: #ef4444;
+  --font-display: "Rajdhani", "Inter", system-ui, sans-serif;
 }
 
-html,
-body {
-    background: #0a0e1a;
-    color: #e2e8f0;
-    font-family: 'Rajdhani', system-ui, sans-serif;
-    letter-spacing: 0.01em;
+html, body {
+  background: #0a0e1a;
+  color: #e2e8f0;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 /* CS2-themed scrollbar */
-::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: #0a0e1a;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #1f2942;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #f59e0b;
-}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0a0e1a; }
+::-webkit-scrollbar-thumb { background: #1f2942; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
 
 /* Tactical grid background */
 .tactical-grid {
-    background-image:
-        linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
-    background-size: 40px 40px;
+  background-image:
+    linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 .scanline::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: repeating-linear-gradient(180deg,
-            rgba(255, 255, 255, 0.0) 0px,
-            rgba(255, 255, 255, 0.0) 2px,
-            rgba(255, 255, 255, 0.015) 3px,
-            rgba(255, 255, 255, 0.0) 4px);
-    pointer-events: none;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255,255,255,0.0) 0px,
+    rgba(255,255,255,0.0) 2px,
+    rgba(255,255,255,0.015) 3px,
+    rgba(255,255,255,0.0) 4px
+  );
+  pointer-events: none;
 }
 
-.glow-orange {
-    box-shadow: 0 0 30px -8px rgba(245, 158, 11, 0.5);
-}
-
-.text-glow {
-    text-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
-}
+.glow-orange { box-shadow: 0 0 30px -8px rgba(245, 158, 11, 0.5); }
+.text-glow { text-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
 
 .clip-corner {
-    clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
 }
 
 @keyframes pulse-dot {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.3;
-    }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
-
-.pulse-dot {
-    animation: pulse-dot 1.5s ease-in-out infinite;
-}
+.pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }

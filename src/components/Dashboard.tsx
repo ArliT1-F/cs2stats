@@ -99,7 +99,9 @@ function DemoBanner({ reason, message }: { reason?: string | null; message?: str
       ],
     },
   };
+
   const g = reason ? guidance[reason] : null;
+
   return (
     <div className="mb-6 border border-cs-orange/40 bg-cs-orange/10 p-5 clip-corner">
       <div className="flex items-start gap-3">
@@ -145,6 +147,7 @@ function DemoBanner({ reason, message }: { reason?: string | null; message?: str
     </div>
   );
 }
+
 function SectionHeader({ number, title, subtitle }: { number: string; title: string; subtitle: string }) {
   return (
     <div className="mb-5 flex items-end justify-between border-b border-cs-border pb-3">

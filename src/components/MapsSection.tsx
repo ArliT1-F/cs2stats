@@ -1,9 +1,8 @@
-MapsSection.tsx
-
 import { useState, useMemo } from "react";
 import type { MapStat } from "../lib/demoData";
 import { SUPPORTED_MAPS, ACTIVE_DUTY_MAPS } from "../lib/mapPool";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+
 const MAP_GRADIENTS: Record<string, string> = {
   MIRAGE: "from-yellow-700/40 to-orange-900/40",
   "DUST II": "from-amber-700/40 to-yellow-900/40",
@@ -15,9 +14,12 @@ const MAP_GRADIENTS: Record<string, string> = {
   VERTIGO: "from-zinc-600/40 to-slate-900/40",
   TRAIN: "from-stone-600/40 to-zinc-900/40",
 };
+
 type Filter = "premier" | "all";
+
 export function MapsSection({ maps }: { maps: MapStat[] }) {
   const [filter, setFilter] = useState<Filter>("premier");
+
   // Build a complete list — every Active Duty (or Reserve, if "all") map shown,
   // even if the user hasn't played it yet (with 0 stats placeholder).
   const fullMapList = useMemo(() => {
@@ -36,9 +38,11 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
       );
     });
   }, [maps, filter]);
+
   const playedOnly = fullMapList.filter((m) => m.rounds > 0);
   const sortedByWinRate = [...playedOnly].sort((a, b) => b.winRate - a.winRate);
   const best = sortedByWinRate[0];
+
   const chartData = playedOnly
     .slice()
     .sort((a, b) => b.rounds - a.rounds)
@@ -47,6 +51,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
       name: m.name === "DUST II" ? "DUST2" : m.name,
       winRate: +m.winRate.toFixed(1),
     }));
+
   return (
     <div className="grid gap-5 lg:grid-cols-3">
       {/* Filter tabs */}
@@ -64,6 +69,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
           {playedOnly.length} of {fullMapList.length} played
         </div>
       </div>
+
       {/* Best map highlight */}
       {best ? (
         <div className={`relative overflow-hidden border border-cs-border bg-gradient-to-br ${MAP_GRADIENTS[best.name] || "from-cs-orange/20 to-transparent"} p-6 clip-corner lg:col-span-1`}>
@@ -94,6 +100,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
       ) : (
         <EmptyState filter={filter} />
       )}
+
       {/* Win-rate chart */}
       <div className="border border-cs-border bg-cs-panel p-5 clip-corner lg:col-span-2">
         <div className="mb-3 font-mono text-xs uppercase tracking-widest text-slate-500">
@@ -124,6 +131,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
           </div>
         )}
       </div>
+
       {/* All maps grid (always shows full pool, with "not played" state) */}
       <div className="lg:col-span-3">
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
@@ -176,6 +184,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
     </div>
   );
 }
+
 function FilterButton({
   active,
   onClick,
@@ -196,6 +205,7 @@ function FilterButton({
     </button>
   );
 }
+
 function EmptyState({ filter }: { filter: Filter }) {
   return (
     <div className="border border-cs-border bg-cs-panel p-6 clip-corner lg:col-span-1">

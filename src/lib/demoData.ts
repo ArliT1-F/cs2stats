@@ -2,6 +2,7 @@
 // Used when the user clicks "Try Demo" without signing in.
 
 import { SUPPORTED_MAPS } from "./mapPool";
+
 function seeded(seedStr: string) {
   let h = 2166136261;
   for (let i = 0; i < seedStr.length; i++) {

@@ -1,7 +1,9 @@
 // Deterministic demo data fallback used by /api/me when API keys aren't
 // configured or a user's CS2 stats are private. Lives inside /api so Vercel
 // includes it in the serverless bundle.
+
 import { SUPPORTED_MAPS } from "./_mapPool.js";
+
 function seeded(seedStr) {
   let h = 2166136261;
   for (let i = 0; i < seedStr.length; i++) {
