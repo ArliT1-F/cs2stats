@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FaceitMatch } from "../lib/demoData";
-import { getMapBanner } from "../lib/mapPool";
+import { getMapBanner, getMapIcon } from "../lib/mapPool";
 import { MatchDetail } from "./MatchDetail";
 
 export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }) {
@@ -77,10 +77,11 @@ export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }
 
 function CompactMatchCard({ match, onOpen }: { match: FaceitMatch; onOpen: () => void }) {
   const banner = getMapBanner(match.map);
+  const mapIcon = getMapIcon(match.map);
   return (
     <button
       onClick={onOpen}
-      className={`group relative flex w-full items-stretch overflow-hidden border text-left transition clip-corner ${
+      className={`group relative flex w-full flex-col overflow-hidden border bg-cs-panel text-left transition clip-corner ${
         match.won
           ? "border-emerald-500/30 hover:border-emerald-500/70"
           : match.won === false
@@ -88,40 +89,56 @@ function CompactMatchCard({ match, onOpen }: { match: FaceitMatch; onOpen: () =>
           : "border-cs-border hover:border-slate-500"
       }`}
     >
-      {/* Map thumb strip with banner background */}
-      <div className="relative w-32 flex-shrink-0 overflow-hidden sm:w-44 md:w-56">
+      {/* Top: full-width map banner inside the card */}
+      <div className="relative h-20 w-full overflow-hidden sm:h-24">
         <img
           src={banner}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover transition group-hover:scale-105"
+          alt={`${match.map} banner`}
+          className="absolute inset-0 h-full w-full object-cover transition group-hover:scale-[1.03]"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-cs-bg/40 via-cs-bg/20 to-cs-bg" />
-        <div className="relative flex h-full flex-col justify-between p-3">
-          <div
-            className={`inline-flex w-fit items-center justify-center px-2 py-0.5 font-display text-xs font-black ${
-              match.won
-                ? "bg-emerald-500/80 text-cs-bg"
-                : match.won === false
-                ? "bg-cs-red/80 text-cs-bg"
-                : "bg-slate-500/80 text-cs-bg"
-            }`}
-          >
-            {match.won ? "WIN" : match.won === false ? "LOSS" : "—"}
-          </div>
-          <div className="font-display text-base font-bold uppercase tracking-tight text-white text-glow sm:text-lg">
-            {match.map}
-          </div>
+        {/* Dark gradient bottom→top so the banner blends into the panel */}
+        <div className="absolute inset-0 bg-gradient-to-t from-cs-panel via-cs-panel/30 to-transparent" />
+
+        {/* WIN/LOSS pill in the top-left corner of the banner */}
+        <div
+          className={`absolute left-3 top-3 inline-flex items-center justify-center px-2 py-0.5 font-display text-xs font-black ${
+            match.won
+              ? "bg-emerald-500/90 text-cs-bg"
+              : match.won === false
+              ? "bg-cs-red/90 text-cs-bg"
+              : "bg-slate-500/90 text-cs-bg"
+          }`}
+        >
+          {match.won ? "WIN" : match.won === false ? "LOSS" : "—"}
+        </div>
+
+        {/* Competition + relative time on the top-right of the banner */}
+        <div className="absolute right-3 top-3 font-mono text-[10px] uppercase tracking-widest text-white/70 text-right">
+          {match.competition}
+          <div className="text-white/50">{formatRelative(match.finishedAt)}</div>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-1 items-center gap-4 bg-cs-panel p-4">
+      {/* Bottom: info row with map emblem on the far left */}
+      <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+        {/* Round map emblem (far left) */}
+        {mapIcon && (
+          <img
+            src={mapIcon}
+            alt={match.map}
+            className="h-12 w-12 flex-shrink-0 object-contain sm:h-14 sm:w-14"
+            loading="lazy"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+
+        {/* Map name + score + meta */}
         <div className="flex-1 min-w-0">
-          <div className="font-display text-xl font-bold text-white">{match.score}</div>
-          <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500 truncate">
-            {match.competition} · {formatRelative(match.finishedAt)}
+          <div className="font-display text-base font-bold uppercase tracking-tight text-white sm:text-lg">
+            {match.map}
           </div>
+          <div className="font-display text-xl font-bold text-white sm:text-2xl">{match.score}</div>
         </div>
 
         {/* Quick stats */}

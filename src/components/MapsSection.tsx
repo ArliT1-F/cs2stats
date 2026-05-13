@@ -1,19 +1,7 @@
 import { useState, useMemo } from "react";
 import type { MapStat } from "../lib/demoData";
-import { SUPPORTED_MAPS, ACTIVE_DUTY_MAPS } from "../lib/mapPool";
+import { SUPPORTED_MAPS, ACTIVE_DUTY_MAPS, getMapBanner } from "../lib/mapPool";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
-
-const MAP_GRADIENTS: Record<string, string> = {
-  MIRAGE: "from-yellow-700/40 to-orange-900/40",
-  "DUST II": "from-amber-700/40 to-yellow-900/40",
-  INFERNO: "from-orange-700/40 to-red-900/40",
-  NUKE: "from-slate-600/40 to-slate-900/40",
-  OVERPASS: "from-emerald-700/40 to-teal-900/40",
-  ANCIENT: "from-green-700/40 to-emerald-900/40",
-  ANUBIS: "from-cyan-700/40 to-blue-900/40",
-  VERTIGO: "from-zinc-600/40 to-slate-900/40",
-  TRAIN: "from-stone-600/40 to-zinc-900/40",
-};
 
 type Filter = "premier" | "all";
 
@@ -70,11 +58,18 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
         </div>
       </div>
 
-      {/* Best map highlight */}
+      {/* Best map highlight (with map banner background) */}
       {best ? (
-        <div className={`relative overflow-hidden border border-cs-border bg-gradient-to-br ${MAP_GRADIENTS[best.name] || "from-cs-orange/20 to-transparent"} p-6 clip-corner lg:col-span-1`}>
-          <div className="absolute inset-0 tactical-grid opacity-30" />
-          <div className="relative">
+        <div className="relative overflow-hidden border border-cs-orange/40 clip-corner lg:col-span-1">
+          <img
+            src={getMapBanner(best.name)}
+            alt={`${best.name} map banner`}
+            className="absolute inset-0 h-full w-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-cs-bg/85 via-cs-bg/60 to-cs-bg/95" />
+          <div className="absolute inset-0 tactical-grid opacity-20" />
+          <div className="relative p-6">
             <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// BEST MAP</div>
             <div className="mt-2 font-display text-5xl font-black uppercase tracking-tight text-white text-glow">
               {best.name}
@@ -83,15 +78,15 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
               <div className="font-display text-6xl font-black text-cs-orange">
                 {best.winRate.toFixed(0)}<span className="text-3xl">%</span>
               </div>
-              <div className="pb-2 font-mono text-xs uppercase text-slate-400">win rate</div>
+              <div className="pb-2 font-mono text-xs uppercase text-slate-300">win rate</div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-3 text-sm">
               <div>
-                <div className="font-mono text-[10px] uppercase text-slate-400">Wins</div>
+                <div className="font-mono text-[10px] uppercase text-slate-300">Wins</div>
                 <div className="font-display text-lg font-bold text-white">{best.wins.toLocaleString()}</div>
               </div>
               <div>
-                <div className="font-mono text-[10px] uppercase text-slate-400">Rounds</div>
+                <div className="font-mono text-[10px] uppercase text-slate-300">Rounds</div>
                 <div className="font-display text-lg font-bold text-white">{best.rounds.toLocaleString()}</div>
               </div>
             </div>
@@ -132,7 +127,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
         )}
       </div>
 
-      {/* All maps grid (always shows full pool, with "not played" state) */}
+      {/* All maps grid — banner background per card */}
       <div className="lg:col-span-3">
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {fullMapList.map((m) => {
@@ -140,42 +135,59 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
             return (
               <div
                 key={m.name}
-                className={`relative overflow-hidden border border-cs-border bg-gradient-to-br ${
-                  played ? MAP_GRADIENTS[m.name] || "from-cs-panel to-cs-bg" : "from-cs-panel/50 to-cs-bg/50"
-                } p-4 clip-corner ${!played && "opacity-60"}`}
+                className={`relative overflow-hidden border border-cs-border clip-corner ${!played ? "opacity-70" : ""}`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="font-display text-lg font-bold uppercase tracking-tight text-white">
-                    {m.name}
+                <img
+                  src={getMapBanner(m.name)}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="lazy"
+                />
+                <div className={`absolute inset-0 ${
+                  played
+                    ? "bg-gradient-to-br from-cs-bg/85 via-cs-bg/65 to-cs-bg/95"
+                    : "bg-gradient-to-br from-cs-bg/95 via-cs-bg/85 to-cs-bg"
+                }`} />
+                <div className="relative p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="font-display text-lg font-bold uppercase tracking-tight text-white text-glow">
+                      {m.name}
+                    </div>
+                    {m.pool === "premier" ? (
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-cs-orange">PREMIER</span>
+                    ) : (
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">RESERVE</span>
+                    )}
                   </div>
-                  {m.pool === "premier" ? (
-                    <span className="font-mono text-[9px] uppercase tracking-widest text-cs-orange">PREMIER</span>
+                  {played ? (
+                    <>
+                      <div className="mt-1 flex items-baseline justify-between">
+                        <div
+                          className={`font-display text-2xl font-bold ${
+                            m.winRate >= 60 ? "text-emerald-400" : m.winRate >= 50 ? "text-cs-orange" : "text-cs-red"
+                          }`}
+                        >
+                          {m.winRate.toFixed(1)}%
+                        </div>
+                        <div className="font-mono text-[10px] uppercase text-slate-300">
+                          {m.rounds.toLocaleString()} rds
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1 w-full bg-black/60">
+                        <div
+                          className={`h-full ${
+                            m.winRate >= 60 ? "bg-emerald-400" : m.winRate >= 50 ? "bg-cs-orange" : "bg-cs-red"
+                          }`}
+                          style={{ width: `${Math.min(m.winRate, 100)}%` }}
+                        />
+                      </div>
+                    </>
                   ) : (
-                    <span className="font-mono text-[9px] uppercase tracking-widest text-slate-500">RESERVE</span>
+                    <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-slate-500">
+                      Not played
+                    </div>
                   )}
                 </div>
-                {played ? (
-                  <>
-                    <div className="mt-1 flex items-baseline justify-between">
-                      <div className="font-display text-2xl font-bold text-cs-orange">
-                        {m.winRate.toFixed(1)}%
-                      </div>
-                      <div className="font-mono text-[10px] uppercase text-slate-400">
-                        {m.rounds.toLocaleString()} rds
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1 w-full bg-black/40">
-                      <div
-                        className="h-full bg-cs-orange"
-                        style={{ width: `${Math.min(m.winRate, 100)}%` }}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-3 font-mono text-[10px] uppercase tracking-widest text-slate-600">
-                    Not played
-                  </div>
-                )}
               </div>
             );
           })}

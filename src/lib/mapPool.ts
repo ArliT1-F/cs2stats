@@ -51,6 +51,41 @@ export function getMapBanner(mapName: string): string {
   return MAP_BANNERS[normalized] || "/maps/default.jpg";
 }
 
+// Official CS2 round map icons (the "emblem" style used in the in-game map
+// veto / picker). Sourced from MurkyYT/cs2-map-icons on GitHub — auto-scraped
+// daily from the official game depot.
+//
+// URL pattern: raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/{steam_internal}.png
+const MAP_ICON_BASE = "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images";
+
+const MAP_INTERNAL_NAMES: Record<string, string> = {
+  // Active Duty
+  "DUST II": "de_dust2",
+  "DUST2":   "de_dust2",
+  "MIRAGE":  "de_mirage",
+  "INFERNO": "de_inferno",
+  "NUKE":    "de_nuke",
+  "OVERPASS":"de_overpass",
+  "ANCIENT": "de_ancient",
+  "ANUBIS":  "de_anubis",
+  // Reserve / community
+  "TRAIN":   "de_train",
+  "VERTIGO": "de_vertigo",
+  "OFFICE":  "cs_office",
+  "ITALY":   "cs_italy",
+  "CACHE":   "de_cache",
+};
+
+export function getMapIcon(mapName: string): string | null {
+  if (!mapName) return null;
+  const normalized = mapName.replace(/^de_|^cs_/i, "").replace(/_/g, " ").toUpperCase().trim();
+  // If the input already looks like an internal name, use it directly
+  const internal = MAP_INTERNAL_NAMES[normalized]
+    || (mapName.startsWith("de_") || mapName.startsWith("cs_") ? mapName : null);
+  if (!internal) return null;
+  return `${MAP_ICON_BASE}/${internal}.png`;
+}
+
 // Faceit skill level color (matches Faceit's official rank colors)
 export function faceitLevelColor(level: number | null | undefined): string {
   if (!level) return "#94a3b8";
