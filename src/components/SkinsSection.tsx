@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
 import { useCurrency } from "../lib/currency";
-import { PriceSparkline, type PriceHistory } from "./PriceSparkline";
 
 const LOADOUT_OVERRIDE_KEY = "cs2tracker:loadout_overrides";
 
@@ -73,13 +72,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     }
   }, [isDemo]);
 
-  // Delay inventory fetch by 1.5s to avoid racing the streaming load fetches.
-  // Safari iOS will crash the tab if too many fetches fire at once during the
-  // post-Steam-OpenID navigation window.
-  useEffect(() => {
-    const t = setTimeout(() => load(priceSource), 1500);
-    return () => clearTimeout(t);
-  }, [load, priceSource]);
+  useEffect(() => { load(priceSource); }, [load, priceSource]);
 
   if (loading && !data) {
     return (
@@ -118,40 +111,11 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const cat = data.categories[activeCategory] || (categoriesPresent[0] && data.categories[categoriesPresent[0]]);
   const currentCategory = data.categories[activeCategory] ? activeCategory : categoriesPresent[0];
 
-  // PERFORMANCE: cap visible items per category. Safari iOS dies if we render
-  // hundreds of <img>s with clip-path + drop-shadow filters at once. Users
-  // can click "Show more" to load the rest in batches.
-  const [visibleCount, setVisibleCount] = useState(60);
-  // Reset visible count when switching categories so we always start from 60
-  useEffect(() => { setVisibleCount(60); }, [currentCategory]);
-
   // Manual loadout overrides — keyed by weapon name → assetId
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   useEffect(() => { setOverrides(getLoadoutOverrides()); }, []);
 
-  // Price history sparklines — fetched lazily for the visible items only.
-  // Keyed by market_hash_name. Lazy-loaded the first time the user opens the
-  // skins section, then cached for the page lifetime.
-  const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistory>>({});
-  useEffect(() => {
-    if (!data?.categories || isDemo) return;
-    // Collect up to 50 most-valuable items' market_hash_names
-    const allItems: SkinItem[] = [];
-    for (const cat of Object.values(data.categories)) {
-      for (const it of cat.items) allItems.push(it);
-    }
-    const topNames = allItems
-      .filter((i) => i.price?.lowestPrice && i.marketHashName)
-      .sort((a, b) => (b.price!.lowestPrice || 0) - (a.price!.lowestPrice || 0))
-      .slice(0, 50)
-      .map((i) => i.marketHashName);
-    if (topNames.length === 0) return;
 
-    fetch(`/api/price-history?names=${encodeURIComponent(topNames.join("|"))}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j?.result) setPriceHistory(j.result); })
-      .catch(() => {});
-  }, [data, isDemo]);
 
   // Compute the "loadout" — user overrides take priority, fall back to bestPerWeapon
   const allItemsByAssetId = new Map<string, SkinItem>();
@@ -258,7 +222,6 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
                 compact
                 isEquipped={overrides[item.weapon] === item.assetId}
                 onEquip={() => handleEquip(item)}
-                history={priceHistory[item.marketHashName]}
               />
             ))}
           </div>
@@ -296,29 +259,15 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {cat.items.slice(0, visibleCount).map((item) => (
+            {cat.items.map((item) => (
               <SkinCard
                 key={item.assetId}
                 item={item}
                 isEquipped={overrides[item.weapon] === item.assetId}
                 onEquip={["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(item.category) ? () => handleEquip(item) : undefined}
-                history={priceHistory[item.marketHashName]}
               />
             ))}
           </div>
-          {cat.items.length > visibleCount && (
-            <div className="mt-4 flex flex-col items-center gap-2">
-              <div className="font-mono text-xs text-slate-500">
-                Showing {visibleCount} of {cat.items.length} items
-              </div>
-              <button
-                onClick={() => setVisibleCount((n) => n + 60)}
-                className="bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg hover:brightness-110"
-              >
-                Show 60 more
-              </button>
-            </div>
-          )}
         </>
       )}
     </div>
@@ -348,12 +297,11 @@ function PriceSourceBtn({ active, onClick, children }: { active: boolean; onClic
   );
 }
 
-function SkinCard({ item, compact, isEquipped, onEquip, history }: {
+function SkinCard({ item, compact, isEquipped, onEquip }: {
   item: SkinItem;
   compact?: boolean;
   isEquipped?: boolean;
   onEquip?: () => void;
-  history?: PriceHistory;
 }) {
   const { format } = useCurrency();
   const formatPrice = (n: number | null | undefined) => format(n);
@@ -429,12 +377,7 @@ function SkinCard({ item, compact, isEquipped, onEquip, history }: {
                 <div className="font-display text-base font-bold text-emerald-400">
                   {formatPrice(item.price.lowestPrice)}
                 </div>
-                {history && (
-                  <div className="mt-0.5 flex justify-end">
-                    <PriceSparkline history={history} />
-                  </div>
-                )}
-                {item.price.source && !history && (
+                {item.price.source && (
                   <div className="font-mono text-[9px] text-slate-500">{item.price.source}</div>
                 )}
               </>

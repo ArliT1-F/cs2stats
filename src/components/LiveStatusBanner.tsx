@@ -45,16 +45,9 @@ export function LiveStatusBanner({ steamId, isDemo }: { steamId: string; isDemo:
         // Silent — live status is best-effort
       }
     };
-    // Delay the FIRST poll by 2 seconds. Safari iOS crashes if this fetch
-    // races against /api/me-basic + /api/me-faceit + /api/inventory all firing
-    // at the same time during the post-Steam-OpenID render window.
-    const initialTimer = setTimeout(poll, 2000);
+    poll();
     const interval = setInterval(poll, 30_000);
-    return () => {
-      cancelled = true;
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
+    return () => { cancelled = true; clearInterval(interval); };
   }, [steamId, isDemo]);
 
   if (!status?.isLive) return null;

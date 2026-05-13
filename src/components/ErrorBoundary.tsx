@@ -8,7 +8,7 @@ import { Component, type ReactNode, type ErrorInfo } from "react";
 // uncaught render error becomes a totally blank screen. With this boundary,
 // users see the actual error message they can screenshot and report.
 
-interface Props { children: ReactNode }
+interface Props { children: ReactNode; label?: string }
 interface State { error: Error | null; info: ErrorInfo | null }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -20,9 +20,21 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     this.setState({ error, info });
-    // Also log so it shows in remote debug consoles
     // eslint-disable-next-line no-console
-    console.error("[ErrorBoundary]", error, info);
+    console.error("[ErrorBoundary" + (this.props.label ? `:${this.props.label}` : "") + "]", error, info);
+    // Also write to a global debug log that the DebugOverlay can read
+    try {
+      const w = window as unknown as { __cs2_errors?: unknown[] };
+      w.__cs2_errors = w.__cs2_errors || [];
+      w.__cs2_errors.push({
+        boundary: this.props.label || "root",
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        component: info.componentStack,
+        ts: new Date().toISOString(),
+      });
+    } catch {}
   }
 
   reset = () => this.setState({ error: null, info: null });

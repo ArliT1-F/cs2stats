@@ -10,6 +10,7 @@ import { MatchHistory } from "./MatchHistory";
 import { DemosSection } from "./DemosSection";
 import { ProfileBanner } from "./ProfileBanner";
 import { SourceBadge } from "./SourceBadge";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard({
   profile,
@@ -49,74 +50,80 @@ export function Dashboard({
       )}
       {isDemo && <DemoBanner reason={demoReason} message={demoMessage} />}
 
-      <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
+      <ErrorBoundary label="ProfileBanner">
+        <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
+      </ErrorBoundary>
 
       {/* ─── STEAM (Lifetime: Premier + Casual + Deathmatch combined) ─── */}
       <SourceDivider source="steam" label="Steam Lifetime Data" note="Includes Premier, Competitive, Casual & Deathmatch · Steam does not separate by mode" />
 
       <section id="overview" className="mt-6 scroll-mt-20">
         <SectionHeader number="01" title="Steam Overview" subtitle="Lifetime CS2 statistics from Steam" badge="steam" />
-        <OverviewSection stats={stats} />
+        <ErrorBoundary label="OverviewSection">
+          <OverviewSection stats={stats} />
+        </ErrorBoundary>
       </section>
 
       <section id="weapons" className="mt-12 scroll-mt-20">
         <SectionHeader number="02" title="Steam Weapon Arsenal" subtitle="Lifetime kills, accuracy & HS% per weapon" badge="steam" />
-        <WeaponsSection weapons={stats.weapons} />
+        <ErrorBoundary label="WeaponsSection">
+          <WeaponsSection weapons={stats.weapons} />
+        </ErrorBoundary>
       </section>
 
       <section id="maps" className="mt-12 scroll-mt-20">
         <SectionHeader number="03" title="Steam Map Performance" subtitle="Lifetime win-rate and rounds played" badge="steam" />
-        <MapsSection maps={stats.maps} />
+        <ErrorBoundary label="MapsSection">
+          <MapsSection maps={stats.maps} />
+        </ErrorBoundary>
       </section>
 
       {/* Inventory is only available for the logged-in user (cookie-bound) */}
       {!isPublicView && (
         <section id="skins" className="mt-12 scroll-mt-20">
           <SectionHeader number="04" title="CS2 Skin Inventory" subtitle="Loadout & market values from Steam Community" badge="steam" />
-          <SkinsSection isDemo={isDemo} />
+          <ErrorBoundary label="SkinsSection">
+            <SkinsSection isDemo={isDemo} />
+          </ErrorBoundary>
         </section>
       )}
 
       {/* ─── FACEIT (Competitive matchmaking only — kept separate from Steam) ─── */}
-      <SourceDivider
-        source="faceit"
-        label="FACEIT Data"
-        note={faceit === null && !isDemo
-          ? "Loading FACEIT data — typically takes 3-5 seconds…"
-          : "Competitive matchmaking only · Never combined with Steam stats above"}
-      />
-      {faceit === null && !isDemo && (
-        <div className="mt-3 flex items-center gap-3 border border-cs-orange/30 bg-cs-orange/5 p-3 clip-corner">
-          <div className="h-4 w-4 animate-spin border-2 border-cs-orange border-t-transparent rounded-full" />
-          <div className="font-mono text-xs text-slate-400">
-            // Streaming FACEIT data… profile, lifetime stats, last 50 matches & 10 detailed scoreboards.
-          </div>
-        </div>
-      )}
+      <SourceDivider source="faceit" label="FACEIT Data" note="Competitive matchmaking only · Never combined with Steam stats above" />
 
       <section id="faceit" className="mt-6 scroll-mt-20">
         <SectionHeader number="05" title="FACEIT Profile" subtitle="Skill level, ELO & per-map breakdown" badge="faceit" />
-        <FaceitSection faceit={faceit} />
+        <ErrorBoundary label="FaceitSection">
+          <FaceitSection faceit={faceit} />
+        </ErrorBoundary>
       </section>
 
       <section id="faceit-stats" className="mt-12 scroll-mt-20">
         <SectionHeader number="06" title="FACEIT Detailed Stats" subtitle="Performance · activity · ELO · maps · weapons · clutches · utility" badge="faceit" />
-        <FaceitDetailedStats faceit={faceit} />
+        <ErrorBoundary label="FaceitDetailedStats">
+          <FaceitDetailedStats faceit={faceit} />
+        </ErrorBoundary>
       </section>
 
       <section id="faceit-maps" className="mt-12 scroll-mt-20">
         <SectionHeader number="07" title="FACEIT Map Performance" subtitle="Per-map FACEIT stats — completely separate from Steam maps" badge="faceit" />
-        <FaceitMapPerformance faceit={faceit} />
+        <ErrorBoundary label="FaceitMapPerformance">
+          <FaceitMapPerformance faceit={faceit} />
+        </ErrorBoundary>
       </section>
 
       <section id="matches" className="mt-12 scroll-mt-20">
         <SectionHeader number="08" title="Match History" subtitle="Recent FACEIT matches — click for full scoreboard" badge="faceit" />
-        <MatchHistory matches={faceit?.matches} />
+        <ErrorBoundary label="MatchHistory">
+          <MatchHistory matches={faceit?.matches} />
+        </ErrorBoundary>
       </section>
 
       <section id="demos" className="mt-12 scroll-mt-20">
         <SectionHeader number="09" title="Match Demos" subtitle="Download & watch CS2 replay files" badge="faceit" />
-        <DemosSection matches={faceit?.matches} />
+        <ErrorBoundary label="DemosSection">
+          <DemosSection matches={faceit?.matches} />
+        </ErrorBoundary>
       </section>
 
       <footer className="mt-16 border-t border-cs-border pt-6 text-center">

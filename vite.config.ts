@@ -16,6 +16,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  define: {
+    // Inject the build timestamp so the debug overlay can show which build
+    // is actually running. Critical for diagnosing stale-cache issues.
+    __BUILD_TS__: JSON.stringify(new Date().toISOString()),
+  },
   server: {
     // For local dev: run `vercel dev` on port 3000 in another terminal,
     // then `npm run dev` here, and /api/* will be proxied automatically.

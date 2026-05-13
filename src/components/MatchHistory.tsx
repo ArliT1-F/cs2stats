@@ -2,18 +2,9 @@ import { useState } from "react";
 import type { FaceitMatch } from "../lib/demoData";
 import { getMapBanner, getMapIcon } from "../lib/mapPool";
 import { MatchDetail } from "./MatchDetail";
-import { MatchCompareTray } from "./MatchCompareTray";
 
 export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }) {
   const [openMatch, setOpenMatch] = useState<string | null>(null);
-  const [compareIds, setCompareIds] = useState<string[]>([]);
-  const toggleCompare = (id: string) => {
-    setCompareIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return [prev[1], id]; // bump oldest, keep last 2
-      return [...prev, id];
-    });
-  };
 
   if (!matches || matches.length === 0) {
     return (
@@ -83,30 +74,14 @@ export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }
             key={m.matchId}
             match={m}
             onOpen={() => setOpenMatch(m.matchId)}
-            isInCompare={compareIds.includes(m.matchId)}
-            onToggleCompare={() => toggleCompare(m.matchId)}
           />
         );
       })}
-
-      <MatchCompareTray
-        selected={compareIds}
-        matches={matches}
-        onRemove={(id) => setCompareIds((prev) => prev.filter((x) => x !== id))}
-        onClear={() => setCompareIds([])}
-      />
     </div>
   );
 }
 
-function CompactMatchCard({
-  match, onOpen, isInCompare, onToggleCompare,
-}: {
-  match: FaceitMatch;
-  onOpen: () => void;
-  isInCompare?: boolean;
-  onToggleCompare?: () => void;
-}) {
+function CompactMatchCard({ match, onOpen }: { match: FaceitMatch; onOpen: () => void }) {
   const banner = getMapBanner(match.map);
   const mapIcon = getMapIcon(match.map);
   return (
@@ -150,20 +125,6 @@ function CompactMatchCard({
           <div className="text-white/50">{formatRelative(match.finishedAt)}</div>
         </div>
 
-        {/* Compare toggle (bottom-right of banner) */}
-        {onToggleCompare && (
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleCompare(); }}
-            className={`absolute bottom-2 right-2 px-2 py-0.5 font-display text-[10px] font-black uppercase tracking-widest transition ${
-              isInCompare
-                ? "bg-cs-orange text-cs-bg"
-                : "bg-cs-bg/70 text-slate-300 hover:bg-cs-orange/80 hover:text-cs-bg"
-            }`}
-            title={isInCompare ? "Remove from comparison" : "Add to comparison"}
-          >
-            {isInCompare ? "✓ COMPARE" : "+ COMPARE"}
-          </button>
-        )}
       </div>
 
       {/* Bottom: info row with map emblem on the far left */}

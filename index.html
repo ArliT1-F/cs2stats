@@ -108,6 +108,26 @@
       })();
     </script>
 
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx" onerror="
+      var b=document.getElementById('boot-status');
+      if(b){b.innerHTML='<div style=\'padding:24px;font-family:ui-monospace,Menlo,monospace;color:#e2e8f0;font-size:13px;line-height:1.5\'><div style=\'color:#ef4444;font-weight:bold;letter-spacing:.1em\'>// SCRIPT LOAD FAILED</div><div style=\'margin-top:12px;padding:12px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);color:#fca5a5\'>The application bundle could not be loaded. This usually means a CDN/network issue or the bundle is corrupt.</div></div>';}
+    "></script>
+
+    <!-- Fallback for browsers that don't support type=module (very rare in 2026,
+         but iOS Safari < 11 and IE will hit this). They get a clear message
+         instead of a blank screen. -->
+    <script nomodule>
+      var b = document.getElementById("boot-status");
+      if (b) {
+        b.innerHTML =
+          '<div style="padding:24px;font-family:ui-monospace,Menlo,monospace;color:#e2e8f0;font-size:13px;line-height:1.5;">' +
+          '<div style="color:#ef4444;font-weight:bold;letter-spacing:.1em;">// BROWSER TOO OLD</div>' +
+          '<div style="margin-top:12px;padding:12px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);color:#fca5a5;">' +
+          'Your browser does not support modern JavaScript modules. ' +
+          'Please update to a recent version of Safari, Chrome, Firefox, or Edge.' +
+          '</div>' +
+          '</div>';
+      }
+    </script>
   </body>
 </html>

@@ -1,2 +1,29 @@
-node_modules
-package-lock.json
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Vite cache (NEVER commit — causes stale builds on Vercel/CI)
+.vite/
+node_modules/.vite/
+node_modules/.cache/
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Local env files
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+.cache/

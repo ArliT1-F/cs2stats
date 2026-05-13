@@ -3,6 +3,8 @@ import { Header } from "./components/Header";
 import { Landing } from "./components/Landing";
 import { Dashboard } from "./components/Dashboard";
 import { LiveStatusBanner } from "./components/LiveStatusBanner";
+import { DebugOverlay } from "./components/DebugOverlay";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CurrencyProvider } from "./lib/currency";
 import {
   generateDemoStats,
@@ -70,40 +72,23 @@ export default function App() {
   const fetchSession = useCallback(async () => {
     setLoading(true);
     try {
-      // SEQUENTIAL LOAD: fetch Steam basic data first, render the dashboard,
-      // THEN fetch FACEIT data after a short delay. This avoids the Safari iOS
-      // crash where firing 3+ parallel fetches right after a Steam OpenID
-      // navigation triggers the browser's "page misbehaving" heuristic.
-      const basicResp = await fetch("/api/me-basic", { credentials: "include" });
-      if (!basicResp.ok) { setSession(null); setLoading(false); return; }
-      const basic = await basicResp.json();
-
-      // Show the dashboard immediately with Steam data + null FACEIT
-      setSession({
-        profile: basic.profile,
-        stats: basic.stats,
-        faceit: null,
-        isDemo: !!basic.usedDemo,
-        demoReason: basic.demoReason,
-        demoMessage: basic.demoMessage,
-      });
-      setLoading(false);
-
-      // Wait one tick so the dashboard paints, THEN fetch FACEIT.
-      // This keeps Safari iOS happy during the post-OpenID navigation window.
-      setTimeout(async () => {
-        try {
-          const faceitResp = await fetch("/api/me-faceit", { credentials: "include" });
-          if (faceitResp.ok) {
-            const faceit = await faceitResp.json();
-            setSession((prev) => prev ? { ...prev, faceit } : prev);
-          }
-        } catch {
-          // FACEIT failure is non-fatal
-        }
-      }, 250);
+      const r = await fetch("/api/me", { credentials: "include" });
+      if (r.ok) {
+        const data = await r.json();
+        setSession({
+          profile: data.profile,
+          stats: data.stats,
+          faceit: data.faceit,
+          isDemo: !!data.usedDemo,
+          demoReason: data.demoReason,
+          demoMessage: data.demoMessage,
+        });
+      } else {
+        setSession(null);
+      }
     } catch {
       setSession(null);
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -168,18 +153,21 @@ export default function App() {
 
   return (
     <CurrencyProvider>
+      <DebugOverlay session={session} loading={loading} route={route} />
       <div className={`min-h-screen bg-cs-bg text-slate-200 ${session?.isDemo ? "demo-mode" : ""}`}>
         {/* Persistent DEMO MODE indicator — thin orange stripe along the top edge */}
         {session?.isDemo && <DemoModeStripe />}
 
-        <Header
-          profile={session?.profile || null}
-          onLogin={handleLogin}
-          onLogout={handleLogout}
-          onDemo={handleDemo}
-          isDemo={!!session?.isDemo}
-          isPublicView={!!session?.isPublicView}
-        />
+        <ErrorBoundary label="Header">
+          <Header
+            profile={session?.profile || null}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            onDemo={handleDemo}
+            isDemo={!!session?.isDemo}
+            isPublicView={!!session?.isPublicView}
+          />
+        </ErrorBoundary>
 
         {authError && (
           <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
@@ -196,18 +184,22 @@ export default function App() {
             {/* Live status banner — only on own profile (not public view) */}
             {!session.isPublicView && (
               <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
-                <LiveStatusBanner steamId={session.profile.steamid} isDemo={session.isDemo} />
+                <ErrorBoundary label="LiveStatusBanner">
+                  <LiveStatusBanner steamId={session.profile.steamid} isDemo={session.isDemo} />
+                </ErrorBoundary>
               </div>
             )}
-            <Dashboard
-              profile={session.profile}
-              stats={session.stats}
-              faceit={session.faceit}
-              isDemo={session.isDemo}
-              isPublicView={!!session.isPublicView}
-              demoReason={session.demoReason || null}
-              demoMessage={session.demoMessage || null}
-            />
+            <ErrorBoundary label="Dashboard">
+              <Dashboard
+                profile={session.profile}
+                stats={session.stats}
+                faceit={session.faceit}
+                isDemo={session.isDemo}
+                isPublicView={!!session.isPublicView}
+                demoReason={session.demoReason || null}
+                demoMessage={session.demoMessage || null}
+              />
+            </ErrorBoundary>
           </>
         ) : (
           <Landing onLogin={handleLogin} onDemo={handleDemo} />

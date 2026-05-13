@@ -489,7 +489,7 @@ function buildDemoLifetime(rng: () => number): Record<string, string> {
     "Total Sniper Kills": String(Math.floor(rng() * 1500 + 50)),
     "Average Triple Kills": (rng() * 0.6 + 0.6).toFixed(2),
     "Average Quadro Kills": (rng() * 0.3 + 0.1).toFixed(2),
-    "Average Aces": (rng() * 0.05).toFixed(3),
+    "Average Penta Kills": (rng() * 0.05).toFixed(3),
     "Total Aces": String(Math.floor(rng() * 4)),
     "Total Clutches": String(Math.floor(rng() * 80 + 5)),
     "Total MVPs": String(Math.floor(rng() * 250 + 50)),
