@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 
 // Currency context — lets the user pick a display currency that persists in
 // localStorage. Affects the SkinsSection price displays.
@@ -42,24 +42,34 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  const setCurrency = (c: CurrencyCode) => {
+  // CRITICAL: setCurrency and format must be stable references, otherwise
+  // every consumer re-renders on every parent re-render. With hundreds of
+  // <SkinCard>s consuming useCurrency(), this caused a render storm that
+  // crashed Safari iOS due to memory pressure.
+  const setCurrency = useCallback((c: CurrencyCode) => {
     setCurrencyState(c);
     try { localStorage.setItem(STORAGE_KEY, c); } catch {}
-  };
+  }, []);
 
-  const format = (usdAmount: number | null | undefined): string => {
+  const format = useCallback((usdAmount: number | null | undefined): string => {
     if (usdAmount === null || usdAmount === undefined || !Number.isFinite(usdAmount)) return "—";
     const conf = CURRENCIES[currency];
     const converted = usdAmount * conf.rate;
-    // For high-rate currencies (RUB, SEK) skip decimals
     const decimals = conf.rate >= 10 ? 0 : 2;
     return `${conf.symbol}${converted.toLocaleString(undefined, {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     })}`;
-  };
+  }, [currency]);
 
-  return <Ctx.Provider value={{ currency, setCurrency, format }}>{children}</Ctx.Provider>;
+  // Memoize the context value object so consumers don't re-render unless
+  // currency itself actually changed.
+  const value = useMemo(
+    () => ({ currency, setCurrency, format }),
+    [currency, setCurrency, format]
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useCurrency() {
