@@ -41,16 +41,25 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (!this.state.error) return this.props.children;
-
     const e = this.state.error;
+    const label = this.props.label;
+    // Sub-section errors render inline (not full-screen) so the rest of the
+    // dashboard keeps working. Only the unlabeled root boundary takes the
+    // whole viewport.
+    const containerClass = label
+      ? "border border-cs-red/60 bg-cs-panel p-4 clip-corner"
+      : "min-h-screen bg-cs-bg p-4 text-slate-200 sm:p-8";
+    const innerWrapper = label
+      ? "max-w-full"
+      : "mx-auto max-w-2xl border border-cs-red/60 bg-cs-panel p-5 clip-corner";
     return (
-      <div className="min-h-screen bg-cs-bg p-4 text-slate-200 sm:p-8">
-        <div className="mx-auto max-w-2xl border border-cs-red/60 bg-cs-panel p-5 clip-corner">
+      <div className={containerClass}>
+        <div className={innerWrapper}>
           <div className="font-mono text-xs uppercase tracking-widest text-cs-red">
-            // RUNTIME ERROR
+            // RUNTIME ERROR{label ? ` — ${label}` : ""}
           </div>
           <div className="mt-2 font-display text-xl font-bold text-white">
-            Something broke during render
+            {label ? `${label} crashed` : "Something broke during render"}
           </div>
           <div className="mt-3 break-words border-l-2 border-cs-red/60 bg-cs-bg/60 p-3 font-mono text-sm text-cs-red">
             {e.name}: {e.message}
