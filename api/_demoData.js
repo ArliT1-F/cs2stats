@@ -1,7 +1,7 @@
 // Deterministic demo data fallback used by /api/me when API keys aren't
 // configured or a user's CS2 stats are private. Lives inside /api so Vercel
 // includes it in the serverless bundle.
-
+import { SUPPORTED_MAPS } from "./_mapPool.js";
 function seeded(seedStr) {
   let h = 2166136261;
   for (let i = 0; i < seedStr.length; i++) {
@@ -40,11 +40,10 @@ export function generateDemoStats(seed = "demo") {
     return { name, kills: k, shots, hits };
   }).sort((a, b) => b.kills - a.kills);
 
-  const mapPool = ["MIRAGE","DUST2","INFERNO","NUKE","OVERPASS","ANCIENT","ANUBIS","VERTIGO","TRAIN","CACHE"];
-  const maps = mapPool.map((name) => {
+  const maps = SUPPORTED_MAPS.map(({ name, pool }) => {
     const rds = r(200, 4000);
     const w = Math.floor(rds * (0.35 + rng() * 0.35));
-    return { name, rounds: rds, wins: w, winRate: +((w / rds) * 100).toFixed(1) };
+    return { name, pool, rounds: rds, wins: w, winRate: +((w / rds) * 100).toFixed(1) };
   }).sort((a, b) => b.rounds - a.rounds);
 
   return {

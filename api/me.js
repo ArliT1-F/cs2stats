@@ -4,6 +4,7 @@
 // explaining why so the UI can show a helpful message.
 
 import { generateDemoStats } from "./_demoData.js";
+import { SUPPORTED_MAPS } from "./_mapPool.js";
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
@@ -97,11 +98,15 @@ function transformSteamStats(rawStats) {
     "de_aztec","de_cbble","de_dust","de_dust2","de_inferno","de_nuke",
     "de_train","de_mirage","de_vertigo","de_ancient","de_anubis","de_overpass"
   ];
-  const maps = mapNames
+  // Only include maps from the current CS2 Active Duty + Reserve pool.
+  // Legacy CS:GO maps (assault, militia, dust, cbble, aztec) are filtered out
+  // even though Steam still returns stats for them.
+  const maps = SUPPORTED_MAPS
     .map((m) => ({
-      name: m.replace(/^(de|cs)_/, "").toUpperCase(),
-      wins: map[`total_wins_map_${m}`] || 0,
-      rounds: map[`total_rounds_map_${m}`] || 0,
+      name: m.name,
+      pool: m.pool,
+      wins: map[`total_wins_map_${m.id}`] || 0,
+      rounds: map[`total_rounds_map_${m.id}`] || 0,
     }))
     .filter((m) => m.rounds > 0)
     .map((m) => ({ ...m, winRate: m.rounds ? (m.wins / m.rounds) * 100 : 0 }))

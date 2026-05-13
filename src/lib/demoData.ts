@@ -1,6 +1,7 @@
 // Client-side demo data generator (mirrors the server one).
 // Used when the user clicks "Try Demo" without signing in.
 
+import { SUPPORTED_MAPS } from "./mapPool";
 function seeded(seedStr: string) {
   let h = 2166136261;
   for (let i = 0; i < seedStr.length; i++) {
@@ -25,6 +26,7 @@ export interface WeaponStat {
 
 export interface MapStat {
   name: string;
+  pool: "premier" | "competitive";
   rounds: number;
   wins: number;
   winRate: number;
@@ -96,12 +98,11 @@ export function generateDemoStats(seed = "demo"): Stats {
     })
     .sort((a, b) => b.kills - a.kills);
 
-  const mapPool = ["MIRAGE","DUST2","INFERNO","NUKE","OVERPASS","ANCIENT","ANUBIS","VERTIGO","TRAIN","CACHE"];
-  const maps = mapPool
-    .map((name) => {
+  const maps: MapStat[] = SUPPORTED_MAPS
+    .map(({ name, pool }) => {
       const rds = r(200, 4000);
       const w = Math.floor(rds * (0.35 + rng() * 0.35));
-      return { name, rounds: rds, wins: w, winRate: +((w / rds) * 100).toFixed(1) };
+      return { name, pool, rounds: rds, wins: w, winRate: +((w / rds) * 100).toFixed(1) };
     })
     .sort((a, b) => b.rounds - a.rounds);
 
