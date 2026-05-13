@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
 import { useCurrency } from "../lib/currency";
+import { PriceSparkline, type PriceHistory } from "./PriceSparkline";
 
 const LOADOUT_OVERRIDE_KEY = "cs2tracker:loadout_overrides";
 
@@ -115,6 +116,30 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   useEffect(() => { setOverrides(getLoadoutOverrides()); }, []);
 
+  // Price history sparklines — fetched lazily for the visible items only.
+  // Keyed by market_hash_name. Lazy-loaded the first time the user opens the
+  // skins section, then cached for the page lifetime.
+  const [priceHistory, setPriceHistory] = useState<Record<string, PriceHistory>>({});
+  useEffect(() => {
+    if (!data?.categories || isDemo) return;
+    // Collect up to 50 most-valuable items' market_hash_names
+    const allItems: SkinItem[] = [];
+    for (const cat of Object.values(data.categories)) {
+      for (const it of cat.items) allItems.push(it);
+    }
+    const topNames = allItems
+      .filter((i) => i.price?.lowestPrice && i.marketHashName)
+      .sort((a, b) => (b.price!.lowestPrice || 0) - (a.price!.lowestPrice || 0))
+      .slice(0, 50)
+      .map((i) => i.marketHashName);
+    if (topNames.length === 0) return;
+
+    fetch(`/api/price-history?names=${encodeURIComponent(topNames.join("|"))}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.result) setPriceHistory(j.result); })
+      .catch(() => {});
+  }, [data, isDemo]);
+
   // Compute the "loadout" — user overrides take priority, fall back to bestPerWeapon
   const allItemsByAssetId = new Map<string, SkinItem>();
   for (const cat of Object.values(data.categories)) {
@@ -220,6 +245,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
                 compact
                 isEquipped={overrides[item.weapon] === item.assetId}
                 onEquip={() => handleEquip(item)}
+                history={priceHistory[item.marketHashName]}
               />
             ))}
           </div>
@@ -263,6 +289,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
                 item={item}
                 isEquipped={overrides[item.weapon] === item.assetId}
                 onEquip={["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(item.category) ? () => handleEquip(item) : undefined}
+                history={priceHistory[item.marketHashName]}
               />
             ))}
           </div>
@@ -295,11 +322,12 @@ function PriceSourceBtn({ active, onClick, children }: { active: boolean; onClic
   );
 }
 
-function SkinCard({ item, compact, isEquipped, onEquip }: {
+function SkinCard({ item, compact, isEquipped, onEquip, history }: {
   item: SkinItem;
   compact?: boolean;
   isEquipped?: boolean;
   onEquip?: () => void;
+  history?: PriceHistory;
 }) {
   const { format } = useCurrency();
   const formatPrice = (n: number | null | undefined) => format(n);
@@ -375,7 +403,12 @@ function SkinCard({ item, compact, isEquipped, onEquip }: {
                 <div className="font-display text-base font-bold text-emerald-400">
                   {formatPrice(item.price.lowestPrice)}
                 </div>
-                {item.price.source && (
+                {history && (
+                  <div className="mt-0.5 flex justify-end">
+                    <PriceSparkline history={history} />
+                  </div>
+                )}
+                {item.price.source && !history && (
                   <div className="font-mono text-[9px] text-slate-500">{item.price.source}</div>
                 )}
               </>

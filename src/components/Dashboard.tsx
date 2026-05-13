@@ -78,7 +78,21 @@ export function Dashboard({
       )}
 
       {/* ─── FACEIT (Competitive matchmaking only — kept separate from Steam) ─── */}
-      <SourceDivider source="faceit" label="FACEIT Data" note="Competitive matchmaking only · Never combined with Steam stats above" />
+      <SourceDivider
+        source="faceit"
+        label="FACEIT Data"
+        note={faceit === null && !isDemo
+          ? "Loading FACEIT data — typically takes 3-5 seconds…"
+          : "Competitive matchmaking only · Never combined with Steam stats above"}
+      />
+      {faceit === null && !isDemo && (
+        <div className="mt-3 flex items-center gap-3 border border-cs-orange/30 bg-cs-orange/5 p-3 clip-corner">
+          <div className="h-4 w-4 animate-spin border-2 border-cs-orange border-t-transparent rounded-full" />
+          <div className="font-mono text-xs text-slate-400">
+            // Streaming FACEIT data… profile, lifetime stats, last 50 matches & 10 detailed scoreboards.
+          </div>
+        </div>
+      )}
 
       <section id="faceit" className="mt-6 scroll-mt-20">
         <SectionHeader number="05" title="FACEIT Profile" subtitle="Skill level, ELO & per-map breakdown" badge="faceit" />

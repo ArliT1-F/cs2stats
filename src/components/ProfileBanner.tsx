@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Profile, Stats, FaceitData } from "../lib/demoData";
 
 export function ProfileBanner({
@@ -61,6 +62,30 @@ export function ProfileBanner({
   );
 }
 
+function ShareLink({ steamId }: { steamId: string }) {
+  const [copied, setCopied] = useState(false);
+  const onClick = () => {
+    const url = `${window.location.origin}/u/${steamId}`;
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 text-cs-orange hover:underline"
+      title="Copy shareable profile link"
+    >
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </svg>
+      {copied ? "Copied!" : "Share"}
+    </button>
+  );
+}
+
 function QuickStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="border-l-2 border-cs-border pl-3">
@@ -80,14 +105,5 @@ function FaceitBadge({ level }: { level: number }) {
     >
       {level}
     </div>
-  );
-}
-
-function ShareLink({ steamId }: { steamId: string }) {
-  const shareUrl = `https://cs2stats.com/profile/${steamId}`;
-  return (
-    <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}`} target="_blank" rel="noopener noreferrer" className="text-cs-blue hover:underline">
-      Share ↗
-    </a>
   );
 }
