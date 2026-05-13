@@ -63,6 +63,14 @@ export function DebugOverlay({ session, loading, route }: {
   const sessionSummary = !session
     ? "null"
     : `{ profile: ${session.profile?.personaname || "?"}, isDemo: ${session.isDemo}, isPublic: ${session.isPublicView}, faceit: ${session.faceit ? "yes" : "no"}, demoReason: ${session.demoReason || "none"} }`;
+  // Read the global error log populated by ErrorBoundary so the user can see
+  // which section(s) crashed without scrolling around looking for red cards.
+  const errors = (() => {
+    try {
+      const w = window as unknown as { __cs2_errors?: Array<{ boundary: string; name: string; message: string }> };
+      return w.__cs2_errors || [];
+    } catch { return []; }
+  })();
 
   return (
     <div className="fixed bottom-2 right-2 z-[70] max-w-[320px] border border-cs-orange/60 bg-cs-bg/95 p-2 font-mono text-[10px] text-slate-300 backdrop-blur">
@@ -82,6 +90,17 @@ export function DebugOverlay({ session, loading, route }: {
         <div><span className="text-slate-500">route:</span> {route.kind}{route.steamId ? ` (${route.steamId.slice(-6)})` : ""}</div>
         <div><span className="text-slate-500">session:</span> {sessionSummary}</div>
         <div><span className="text-slate-500">ua:</span> <span className="text-slate-600">{navigator.userAgent.slice(0, 60)}…</span></div>
+        {errors.length > 0 && (
+          <div className="mt-2 border-t border-cs-red/40 pt-2">
+            <div className="font-bold text-cs-red">⚠ ERRORS ({errors.length}):</div>
+            {errors.map((e, i) => (
+              <div key={i} className="mt-1 border-l-2 border-cs-red/60 pl-1.5">
+                <div className="text-cs-red font-bold">[{e.boundary}]</div>
+                <div className="text-slate-400 break-all">{e.name}: {e.message.slice(0, 120)}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="mt-1 border-t border-cs-border pt-1 font-mono text-[9px] text-slate-600">
         Press D to hide. If render# climbs rapidly, there's an infinite loop.
