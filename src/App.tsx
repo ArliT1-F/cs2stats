@@ -16,6 +16,8 @@ interface Session {
   stats: Stats;
   faceit: FaceitData | null;
   isDemo: boolean;
+  demoReason?: string | null;
+  demoMessage?: string | null;
 }
 
 export default function App() {
@@ -48,6 +50,8 @@ export default function App() {
           stats: data.stats,
           faceit: data.faceit,
           isDemo: !!data.usedDemo,
+          demoReason: data.demoReason,
+          demoMessage: data.demoMessage,
         });
       } else {
         setSession(null);
@@ -115,6 +119,8 @@ export default function App() {
           stats={session.stats}
           faceit={session.faceit}
           isDemo={session.isDemo}
+          demoReason={session.demoReason || null}
+          demoMessage={session.demoMessage || null}
         />
       ) : (
         <Landing onLogin={handleLogin} onDemo={handleDemo} />

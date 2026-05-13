@@ -1,11 +1,13 @@
-// Returns the currently logged-in Steam user (from cookie) + their CS2 stats
+// Returns the currently logged-in Steam user (from cookie) + their CS2 stats.
 // Uses Steam Web API and Faceit API. Requires env vars STEAM_API_KEY and FACEIT_API_KEY.
-// If keys are missing or stats are private, returns demo data so the UI still works.
+// If keys are missing or stats are private, returns demo data with a `demoReason`
+// explaining why so the UI can show a helpful message.
 
 import { generateDemoStats } from "./_demoData.js";
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
+  if (!header) return {};
   return Object.fromEntries(
     header.split(";").map((c) => {
       const [k, ...v] = c.trim().split("=");
@@ -17,18 +19,22 @@ function parseCookies(req) {
 async function fetchSteamProfile(steamId, key) {
   const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${key}&steamids=${steamId}`;
   const r = await fetch(url);
-  if (!r.ok) return null;
+  if (!r.ok) return { error: `steam_profile_${r.status}` };
   const j = await r.json();
-  return j?.response?.players?.[0] || null;
+  return { player: j?.response?.players?.[0] || null };
 }
 
 async function fetchCs2Stats(steamId, key) {
   // appid 730 = CS:GO/CS2
   const url = `https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v0002/?appid=730&key=${key}&steamid=${steamId}`;
   const r = await fetch(url);
-  if (!r.ok) return null;
+  if (r.status === 403) return { error: "private_profile" };
+  if (r.status === 400) return { error: "no_cs2_stats" };
+  if (!r.ok) return { error: `steam_stats_${r.status}` };
   const j = await r.json();
-  return j?.playerstats?.stats || null;
+  const stats = j?.playerstats?.stats;
+  if (!stats || stats.length === 0) return { error: "empty_stats" };
+  return { stats };
 }
 
 async function fetchFaceit(steamId, key) {
@@ -67,6 +73,9 @@ function transformSteamStats(rawStats) {
   const moneyEarned = map.total_money_earned || 0;
   const planted = map.total_planted_bombs || 0;
   const defused = map.total_defused_bombs || 0;
+
+  // If everything is zero, the account never played CS2
+  if (totalKills === 0 && totalDeaths === 0 && rounds === 0) return null;
 
   const weaponNames = [
     "ak47","m4a1","awp","glock","hkp2000","usp_silencer","deagle","p250",
@@ -119,6 +128,14 @@ function transformSteamStats(rawStats) {
   };
 }
 
+const REASON_MESSAGES = {
+  no_steam_key: "The site owner hasn't configured a STEAM_API_KEY environment variable on Vercel.",
+  private_profile: "Your Steam profile's 'Game details' privacy is set to Private or Friends Only. Set it to Public on your Steam profile to see real stats.",
+  no_cs2_stats: "Steam returned no CS2 stats for this account. Make sure you've played CS2 on this Steam account at least once.",
+  empty_stats: "Steam returned an empty stats response. Your account may not have played CS2.",
+  steam_api_error: "Steam's API returned an error. The STEAM_API_KEY may be invalid or rate-limited.",
+};
+
 export default async function handler(req, res) {
   const cookies = parseCookies(req);
   const steamId = cookies.steamid;
@@ -132,20 +149,44 @@ export default async function handler(req, res) {
   let profile = null;
   let stats = null;
   let faceit = null;
-  let usedDemo = false;
+  let demoReason = null;
+  let debug = {
+    hasSteamKey: !!STEAM_KEY,
+    hasFaceitKey: !!FACEIT_KEY,
+    steamId,
+  };
 
-  if (STEAM_KEY) {
-    profile = await fetchSteamProfile(steamId, STEAM_KEY);
-    const raw = await fetchCs2Stats(steamId, STEAM_KEY);
-    stats = transformSteamStats(raw);
+  if (!STEAM_KEY) {
+    demoReason = "no_steam_key";
+  } else {
+    const profileResp = await fetchSteamProfile(steamId, STEAM_KEY);
+    if (profileResp.error) {
+      debug.profileError = profileResp.error;
+      demoReason = "steam_api_error";
+    } else {
+      profile = profileResp.player;
+    }
+
+    const statsResp = await fetchCs2Stats(steamId, STEAM_KEY);
+    if (statsResp.error) {
+      debug.statsError = statsResp.error;
+      demoReason = statsResp.error;
+    } else {
+      const transformed = transformSteamStats(statsResp.stats);
+      if (transformed) {
+        stats = transformed;
+      } else {
+        demoReason = "no_cs2_stats";
+      }
+    }
   }
+
   if (FACEIT_KEY) {
     faceit = await fetchFaceit(steamId, FACEIT_KEY);
   }
 
   if (!stats) {
     stats = generateDemoStats(steamId);
-    usedDemo = true;
   }
   if (!profile) {
     profile = {
@@ -157,5 +198,13 @@ export default async function handler(req, res) {
   }
 
   res.setHeader("Cache-Control", "private, max-age=60");
-  res.json({ profile, stats, faceit, usedDemo });
+  res.json({
+    profile,
+    stats,
+    faceit,
+    usedDemo: !!demoReason,
+    demoReason,
+    demoMessage: demoReason ? REASON_MESSAGES[demoReason] || "Unknown reason" : null,
+    debug,
+  });
 }
