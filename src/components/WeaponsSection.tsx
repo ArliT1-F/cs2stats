@@ -23,9 +23,12 @@ export function WeaponsSection({ weapons }: { weapons: WeaponStat[] }) {
               #{i + 1}
             </div>
             <div className="flex items-center gap-4">
-              {/* Weapon image */}
-              <div className="flex h-16 w-24 flex-shrink-0 items-center justify-center bg-cs-bg/60 p-1">
-                <WeaponIcon name={w.name} className="max-h-full max-w-full object-contain" size={96} />
+              {/* Weapon image — official CS2 3D render */}
+              <div
+                className="relative flex h-20 w-32 flex-shrink-0 items-center justify-center overflow-hidden bg-gradient-to-br from-cs-bg/80 to-cs-panel/40 p-1"
+                style={{ backgroundImage: "radial-gradient(circle at center, rgba(245,158,11,0.18) 0%, transparent 65%)" }}
+              >
+                <WeaponIcon name={w.name} className="relative max-h-full max-w-full object-contain" size={128} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-mono text-[10px] uppercase tracking-widest text-cs-orange">
@@ -97,8 +100,8 @@ export function WeaponsSection({ weapons }: { weapons: WeaponStat[] }) {
                   <tr key={w.name} className="border-b border-cs-border/50 hover:bg-cs-bg/40">
                     <td className="py-2 pr-2">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-12 flex-shrink-0 items-center justify-center bg-cs-bg/60">
-                          <WeaponIcon name={w.name} className="max-h-full max-w-full object-contain" size={48} />
+                        <div className="flex h-10 w-16 flex-shrink-0 items-center justify-center overflow-hidden bg-cs-bg/60 px-1">
+                          <WeaponIcon name={w.name} className="max-h-full max-w-full object-contain" size={64} />
                         </div>
                         <span className="font-display font-bold text-white">{w.name}</span>
                       </div>

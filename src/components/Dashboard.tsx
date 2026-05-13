@@ -4,7 +4,7 @@ import { WeaponsSection } from "./WeaponsSection";
 import { MapsSection } from "./MapsSection";
 import { SkinsSection } from "./SkinsSection";
 import { FaceitSection } from "./FaceitSection";
-import { FaceitAggregate } from "./FaceitAggregate";
+import { FaceitDetailedStats } from "./FaceitDetailedStats";
 import { FaceitMapPerformance } from "./FaceitMapPerformance";
 import { MatchHistory } from "./MatchHistory";
 import { DemosSection } from "./DemosSection";
@@ -64,8 +64,8 @@ export function Dashboard({
       </section>
 
       <section id="faceit-stats" className="mt-12 scroll-mt-20">
-        <SectionHeader number="06" title="FACEIT Aggregate Stats" subtitle="Lifetime + recent form, separately tracked" badge="faceit" />
-        <FaceitAggregate faceit={faceit} />
+        <SectionHeader number="06" title="FACEIT Detailed Stats" subtitle="Performance · activity · ELO · maps · weapons · clutches · utility" badge="faceit" />
+        <FaceitDetailedStats faceit={faceit} />
       </section>
 
       <section id="faceit-maps" className="mt-12 scroll-mt-20">

@@ -21,21 +21,77 @@ function parseCookies(req) {
   );
 }
 
-// --- Steam inventory fetch -------------------------------------------------
+// --- Steam inventory fetch (with pagination) ------------------------------
+// Steam paginates results: it returns up to ~2000 items at a time and signals
+// more pages via `more_items` + `last_assetid`. We loop until everything is
+// fetched (or we hit a safety cap of 5 pages = ~10000 items).
 async function fetchInventory(steamId) {
-  const url = `https://steamcommunity.com/inventory/${steamId}/730/2?l=english&count=2000`;
-  const r = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; CS2Tracker/1.0)",
-      Accept: "application/json",
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+    Accept: "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "en-US,en;q=0.9",
+    Referer: `https://steamcommunity.com/profiles/${steamId}/inventory/`,
+  };
+
+  // CS2 inventories can have hundreds of items. We use a smaller per-page count
+  // (Steam reduced the cap to ~2000 but is more reliable at 1000) and paginate.
+  const PER_PAGE = 1000;
+  const MAX_PAGES = 6;
+  let allAssets = [];
+  let allDescriptions = new Map(); // dedupe by classid_instanceid
+  let lastAssetId = null;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const params = new URLSearchParams({
+      l: "english",
+      count: String(PER_PAGE),
+    });
+    if (lastAssetId) params.set("start_assetid", lastAssetId);
+
+    const url = `https://steamcommunity.com/inventory/${steamId}/730/2?${params}`;
+    const r = await fetch(url, { headers });
+
+    if (r.status === 403) return { error: "private_inventory" };
+    if (r.status === 429) return allAssets.length > 0
+      ? finalize(allAssets, allDescriptions, true)  // partial result
+      : { error: "rate_limited" };
+    if (!r.ok) return allAssets.length > 0
+      ? finalize(allAssets, allDescriptions, true)
+      : { error: `inventory_${r.status}` };
+
+    let j;
+    try { j = await r.json(); } catch { break; }
+    if (!j || j.success === false) {
+      if (allAssets.length === 0) return { error: "empty_inventory" };
+      break;
+    }
+
+    if (Array.isArray(j.assets)) allAssets = allAssets.concat(j.assets);
+    if (Array.isArray(j.descriptions)) {
+      for (const d of j.descriptions) {
+        allDescriptions.set(`${d.classid}_${d.instanceid}`, d);
+      }
+    }
+
+    if (!j.more_items || !j.last_assetid || j.last_assetid === lastAssetId) break;
+    lastAssetId = j.last_assetid;
+
+    // Brief delay between pages to avoid Steam's rate limiter
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  if (allAssets.length === 0) return { error: "empty_inventory" };
+  return finalize(allAssets, allDescriptions, false);
+}
+
+function finalize(assets, descMap, partial) {
+  return {
+    data: {
+      assets,
+      descriptions: Array.from(descMap.values()),
     },
-  });
-  if (r.status === 403) return { error: "private_inventory" };
-  if (r.status === 429) return { error: "rate_limited" };
-  if (!r.ok) return { error: `inventory_${r.status}` };
-  const j = await r.json();
-  if (!j || j.success === false) return { error: "empty_inventory" };
-  return { data: j };
+    partial,
+  };
 }
 
 // --- Steam Market price lookup --------------------------------------------
@@ -164,17 +220,18 @@ export default async function handler(req, res) {
     descMap[`${d.classid}_${d.instanceid}`] = d;
   }
 
-  // Merge assets with descriptions
+  // Merge assets with descriptions. Show ALL items by default — including
+  // non-marketable ones (knives in trade-hold, etc.) so the user sees their
+  // complete inventory. Only filter obvious junk (used graffiti charges).
   const items = [];
   for (const a of assets) {
     const desc = descMap[`${a.classid}_${a.instanceid}`];
     if (!desc) continue;
-    if (desc.tradable === 0 && desc.marketable === 0) {
-      // Skip non-marketable junk (graffiti charges, etc.) unless it's a knife/gloves
-      const cat = categorize(desc);
-      if (!["Knife", "Gloves"].includes(cat)) continue;
-    }
     const cat = categorize(desc);
+    // Skip used-up graffiti / sealed graffiti charges (zero practical value)
+    if (cat === "Other" && desc.type?.toLowerCase().includes("graffiti") && desc.marketable === 0) {
+      continue;
+    }
     items.push({
       assetId: a.assetid,
       classId: a.classid,
@@ -274,6 +331,7 @@ export default async function handler(req, res) {
     pricesIncluded: fetchPrices,
     pricedCount: items.filter((i) => i.price).length,
     currency,
+    partial: !!inv.partial,
     categories,
     bestPerWeapon,
   });

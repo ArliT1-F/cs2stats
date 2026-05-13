@@ -80,6 +80,26 @@ export interface FaceitMatchPlayer {
   tripleKills: number | null;
   quadroKills: number | null;
   pentaKills: number | null;
+  damage?: number | null;
+  firstKills?: number | null;
+  firstDeaths?: number | null;
+  entryCount?: number | null;
+  entryWins?: number | null;
+  clutchKills?: number | null;
+  oneVOneWins?: number | null;
+  oneVOneLosses?: number | null;
+  oneVTwoWins?: number | null;
+  oneVTwoLosses?: number | null;
+  flashesThrown?: number | null;
+  enemiesFlashed?: number | null;
+  flashSuccesses?: number | null;
+  utilityDamage?: number | null;
+  utilityCount?: number | null;
+  heCount?: number | null;
+  sniperKills?: number | null;
+  pistolKills?: number | null;
+  knifeKills?: number | null;
+  zeusKills?: number | null;
 }
 
 export interface FaceitMatchTeam {
@@ -100,10 +120,12 @@ export interface FaceitMatch {
   score: string;
   won: boolean | null;
   finishedAt: number;
+  startedAt?: number | null;
   competition: string;
   matchUrl: string;
   demoUrl: string | null;
   teams: FaceitMatchTeam[];
+  totalRounds?: number | null;
   // Convenience: my own stats
   kills: number | null;
   deaths: number | null;
@@ -111,11 +133,41 @@ export interface FaceitMatch {
   kdRatio: number | null;
   krRatio: number | null;
   adr: number | null;
+  damage?: number | null;
+  headshots?: number | null;
   headshotsPct: number | null;
   mvps: number | null;
   tripleKills: number | null;
   quadroKills: number | null;
   pentaKills: number | null;
+  firstKills?: number | null;
+  firstDeaths?: number | null;
+  entryCount?: number | null;
+  entryWins?: number | null;
+  clutchKills?: number | null;
+  oneVOneWins?: number | null;
+  oneVOneLosses?: number | null;
+  oneVTwoWins?: number | null;
+  oneVTwoLosses?: number | null;
+  flashesThrown?: number | null;
+  enemiesFlashed?: number | null;
+  flashSuccesses?: number | null;
+  utilityDamage?: number | null;
+  utilityCount?: number | null;
+  heCount?: number | null;
+  sniperKills?: number | null;
+  pistolKills?: number | null;
+  knifeKills?: number | null;
+  zeusKills?: number | null;
+}
+
+export interface LightHistoryItem {
+  matchId: string;
+  finishedAt: number;
+  startedAt: number | null;
+  competition: string;
+  won: boolean | null;
+  map: string | null;
 }
 
 export interface FaceitData {
@@ -130,6 +182,8 @@ export interface FaceitData {
     segments?: Array<{ label: string; mode: string; stats: Record<string, string> }>;
   };
   matches?: FaceitMatch[];
+  historyLight?: LightHistoryItem[];
+  lifetimeRaw?: Record<string, string> | null;
 }
 
 export function generateDemoStats(seed = "demo"): Stats {
@@ -255,6 +309,26 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       tripleKills: Math.floor(rng() * 3),
       quadroKills: rng() > 0.7 ? 1 : 0,
       pentaKills: rng() > 0.92 ? 1 : 0,
+      damage: adr * rounds,
+      firstKills: Math.floor(rng() * 6),
+      firstDeaths: Math.floor(rng() * 6),
+      entryCount: Math.floor(rng() * 12),
+      entryWins: Math.floor(rng() * 8),
+      clutchKills: Math.floor(rng() * 5),
+      oneVOneWins: Math.floor(rng() * 3),
+      oneVOneLosses: Math.floor(rng() * 3),
+      oneVTwoWins: Math.floor(rng() * 2),
+      oneVTwoLosses: Math.floor(rng() * 3),
+      flashesThrown: Math.floor(rng() * 18 + 2),
+      enemiesFlashed: Math.floor(rng() * 14),
+      flashSuccesses: Math.floor(rng() * 10),
+      utilityDamage: Math.floor(rng() * 80),
+      utilityCount: Math.floor(rng() * 10 + 2),
+      heCount: Math.floor(rng() * 6),
+      sniperKills: Math.floor(rng() * 8),
+      pistolKills: Math.floor(rng() * 5),
+      knifeKills: rng() > 0.9 ? 1 : 0,
+      zeusKills: rng() > 0.95 ? 1 : 0,
     };
   };
 
@@ -307,14 +381,43 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       score: `${ourScore} / ${theirScore}`,
       won,
       finishedAt: now - i * 86400 - Math.floor(rng() * 40000),
+      startedAt: now - i * 86400 - Math.floor(rng() * 40000) - 2400,
       competition: i < 2 ? "FACEIT 5v5 RANKED" : "FACEIT 5v5",
       matchUrl: `https://www.faceit.com/en/cs2/room/1-${seed}-demo-${i}`,
       demoUrl: null,
       teams: [teamA, teamB],
+      totalRounds,
       kills: me.kills, deaths: me.deaths, assists: me.assists,
       kdRatio: me.kdRatio, krRatio: me.krRatio, adr: me.adr,
+      damage: me.damage,
+      headshots: me.headshots,
       headshotsPct: me.headshotsPct, mvps: me.mvps,
       tripleKills: me.tripleKills, quadroKills: me.quadroKills, pentaKills: me.pentaKills,
+      firstKills: me.firstKills, firstDeaths: me.firstDeaths,
+      entryCount: me.entryCount, entryWins: me.entryWins,
+      clutchKills: me.clutchKills,
+      oneVOneWins: me.oneVOneWins, oneVOneLosses: me.oneVOneLosses,
+      oneVTwoWins: me.oneVTwoWins, oneVTwoLosses: me.oneVTwoLosses,
+      flashesThrown: me.flashesThrown, enemiesFlashed: me.enemiesFlashed,
+      flashSuccesses: me.flashSuccesses,
+      utilityDamage: me.utilityDamage, utilityCount: me.utilityCount,
+      heCount: me.heCount,
+      sniperKills: me.sniperKills, pistolKills: me.pistolKills,
+      knifeKills: me.knifeKills, zeusKills: me.zeusKills,
+    };
+  });
+
+  // Generate ~70 lightweight history items spanning the last 60 days for the
+  // activity heatmap / hour-of-day chart.
+  const historyLight: LightHistoryItem[] = Array.from({ length: 70 }, (_, i) => {
+    const ts = now - Math.floor(rng() * 86400 * 60);
+    return {
+      matchId: `1-${seed}-light-${i}`,
+      finishedAt: ts,
+      startedAt: ts - 2400,
+      competition: "FACEIT 5v5",
+      won: rng() > 0.46,
+      map: mapPool[Math.floor(rng() * mapPool.length)],
     };
   });
 
@@ -326,16 +429,55 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       games: { cs2: { skill_level: lvl, faceit_elo: elo, region: "EU" } },
     },
     stats: {
-      lifetime: {
-        "Matches": String(Math.floor(rng() * 1500 + 100)),
-        "Win Rate %": String(Math.floor(rng() * 30 + 45)),
-        "Average K/D Ratio": (rng() * 1.0 + 0.8).toFixed(2),
-        "Average Headshots %": String(Math.floor(rng() * 25 + 40)),
-        "Longest Win Streak": String(Math.floor(rng() * 12 + 2)),
-        "Current Win Streak": String(Math.floor(rng() * 5)),
-      },
+      lifetime: buildDemoLifetime(rng),
       segments,
     },
     matches,
+    historyLight,
+    lifetimeRaw: buildDemoLifetime(rng),
+  };
+}
+
+function buildDemoLifetime(rng: () => number): Record<string, string> {
+  const totalMatches = Math.floor(rng() * 1400 + 80);
+  const winRate = Math.floor(rng() * 25 + 45);
+  const wins = Math.floor((totalMatches * winRate) / 100);
+  return {
+    "Matches": String(totalMatches),
+    "Wins": String(wins),
+    "Win Rate %": String(winRate),
+    "Recent Results": ["1","0","1","1","0"].slice(0, 5).join(","),
+    "Average K/D Ratio": (rng() * 0.8 + 0.85).toFixed(2),
+    "K/D Ratio": (rng() * 0.8 + 0.85).toFixed(2),
+    "Average K/R Ratio": (rng() * 0.4 + 0.55).toFixed(2),
+    "K/R Ratio": (rng() * 0.4 + 0.55).toFixed(2),
+    "Average Headshots %": String(Math.floor(rng() * 20 + 38)),
+    "Total Headshots %": String(Math.floor(rng() * 5000 + 500)),
+    "ADR": String(Math.floor(rng() * 25 + 65)),
+    "Longest Win Streak": String(Math.floor(rng() * 10 + 3)),
+    "Current Win Streak": String(Math.floor(rng() * 4)),
+    "Total Kills with extended stats": String(Math.floor(rng() * 30000 + 1000)),
+    "Total Wins": String(wins),
+    "Entry Rate": String(Math.floor(rng() * 8 + 14)),
+    "Entry Success Rate": String(Math.floor(rng() * 18 + 42)),
+    "Utility Damage per Round": String(Math.floor(rng() * 4 + 1)),
+    "Flash Success Rate": String(Math.floor(rng() * 15 + 38)),
+    "Flashes per Round": (rng() * 0.4 + 0.4).toFixed(2),
+    "Utility Usage per Round": (rng() * 1.2 + 2.0).toFixed(1),
+    "Enemies Flashed per Round": (rng() * 0.4 + 0.3).toFixed(2),
+    "Utility Damage Success Rate": String(Math.floor(rng() * 12 + 26)),
+    "1v1 Win Rate": String(Math.floor(rng() * 20 + 25)),
+    "1v2 Win Rate": String(Math.floor(rng() * 15 + 18)),
+    "Total 1v1 Count": String(Math.floor(rng() * 80 + 25)),
+    "Total 1v2 Count": String(Math.floor(rng() * 50 + 20)),
+    "Sniper Kill Rate per Round": (rng() * 0.15 + 0.05).toFixed(2),
+    "Sniper Kill Rate per Match": String(Math.floor(rng() * 5 + 1)),
+    "Total Sniper Kills": String(Math.floor(rng() * 1500 + 50)),
+    "Average Triple Kills": (rng() * 0.6 + 0.6).toFixed(2),
+    "Average Quadro Kills": (rng() * 0.3 + 0.1).toFixed(2),
+    "Average Penta Kills": (rng() * 0.05).toFixed(3),
+    "Total Aces": String(Math.floor(rng() * 4)),
+    "Total Clutches": String(Math.floor(rng() * 80 + 5)),
+    "Total MVPs": String(Math.floor(rng() * 250 + 50)),
   };
 }

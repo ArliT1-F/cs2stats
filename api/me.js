@@ -51,22 +51,49 @@ async function fetchFaceit(steamId, key) {
     const pid = player.player_id;
 
     // Fetch lifetime stats (with per-map segments) and recent history in parallel.
+    // We fetch 50 history items so the activity heatmap / hour-of-day stats have
+    // enough data to be meaningful. Only the 10 most recent get full stats
+    // detail (those power Match History UI). The rest are kept lightweight
+    // (just timestamps + map + score + ELO change for activity charts).
     const [statsResp, historyResp] = await Promise.all([
       fetch(`https://open.faceit.com/data/v4/players/${pid}/stats/cs2`, { headers }),
-      fetch(`https://open.faceit.com/data/v4/players/${pid}/history?game=cs2&offset=0&limit=20`, { headers }),
+      fetch(`https://open.faceit.com/data/v4/players/${pid}/history?game=cs2&offset=0&limit=50`, { headers }),
     ]);
 
     const stats = statsResp.ok ? await statsResp.json() : null;
     const historyJson = historyResp.ok ? await historyResp.json() : null;
+    const allHistoryItems = historyJson?.items || [];
 
-    // For each recent match: fetch BOTH /matches/{id} (teams + roster + ELOs)
-    // AND /matches/{id}/stats (leaderboard data) in parallel. We do 10 most recent.
-    const matches = (historyJson?.items || []).slice(0, 10);
+    // First 10: full match detail with stats, teams & rosters
+    const detailedSrc = allHistoryItems.slice(0, 10);
     const enrichedMatches = await Promise.all(
-      matches.map((m) => fetchFullMatch(m, pid, headers))
+      detailedSrc.map((m) => fetchFullMatch(m, pid, headers))
     );
 
-    return { player, stats, matches: enrichedMatches };
+    // Remaining: lightweight summary used for activity charts
+    const lightHistory = allHistoryItems.slice(10).map((m) => ({
+      matchId: m.match_id,
+      finishedAt: m.finished_at || m.started_at,
+      startedAt: m.started_at,
+      competition: m.competition_name || "FACEIT",
+      // Determine win/loss without fetching stats: check `results.winner`
+      won: m.results?.winner && m.teams
+        ? Object.entries(m.teams).some(
+            ([fid, t]) => fid === m.results.winner && t.players?.some((p) => p.player_id === pid)
+          )
+        : null,
+      map: m.voting?.map?.pick?.[0] || null,
+    }));
+
+    return {
+      player,
+      stats,
+      matches: enrichedMatches,
+      historyLight: lightHistory,
+      // Pass through the raw lifetime blob so the UI can extract any field
+      // FACEIT exposes (Win Rate %, ADR, K/R, Entry Success, Flash %, etc.)
+      lifetimeRaw: stats?.lifetime || null,
+    };
   } catch {
     return null;
   }
@@ -140,6 +167,27 @@ function summarizeMatch(match, playerId, detail, statsJson) {
           tripleKills: numOrNull(ps["Triple Kills"]),
           quadroKills: numOrNull(ps["Quadro Kills"]),
           pentaKills: numOrNull(ps["Penta Kills"]),
+          // Extended CS2 stats (FACEIT exposes when match has full match-stats)
+          damage: numOrNull(ps["Damage"]),
+          firstKills: numOrNull(ps["First Kills"]) ?? numOrNull(ps["Entry Count"]),
+          firstDeaths: numOrNull(ps["First Deaths"]),
+          entryCount: numOrNull(ps["Entry Count"]),
+          entryWins: numOrNull(ps["Entry Wins"]),
+          clutchKills: numOrNull(ps["Clutch Kills"]),
+          oneVOneWins: numOrNull(ps["1v1 Wins"]) ?? numOrNull(ps["1v1Wins"]),
+          oneVOneLosses: numOrNull(ps["1v1 Losses"]) ?? numOrNull(ps["1v1Losses"]),
+          oneVTwoWins: numOrNull(ps["1v2 Wins"]) ?? numOrNull(ps["1v2Wins"]),
+          oneVTwoLosses: numOrNull(ps["1v2 Losses"]) ?? numOrNull(ps["1v2Losses"]),
+          flashesThrown: numOrNull(ps["Flashes Thrown"]) ?? numOrNull(ps["Flash Count"]),
+          enemiesFlashed: numOrNull(ps["Enemies Flashed"]),
+          flashSuccesses: numOrNull(ps["Flash Successes"]),
+          utilityDamage: numOrNull(ps["Utility Damage"]),
+          utilityCount: numOrNull(ps["Utility Count"]),
+          heCount: numOrNull(ps["HE Count"]) ?? numOrNull(ps["HE Grenades"]),
+          sniperKills: numOrNull(ps["Sniper Kills"]),
+          pistolKills: numOrNull(ps["Pistol Kills"]),
+          knifeKills: numOrNull(ps["Knife Kills"]),
+          zeusKills: numOrNull(ps["Zeus Kills"]),
         };
       });
       // Sort scoreboard by kills desc (CS2 style)
@@ -209,28 +257,57 @@ function summarizeMatch(match, playerId, detail, statsJson) {
     ? `${teams[0].score ?? "—"} / ${teams[1].score ?? "—"}`
     : "—";
 
+  // Total rounds played in the match (sum of both teams' scores)
+  const totalRounds =
+    teams.length === 2 && teams[0].score !== null && teams[1].score !== null
+      ? (teams[0].score || 0) + (teams[1].score || 0)
+      : null;
+
   return {
     matchId: match.match_id,
     map,
     score,
     won,
     finishedAt: match.finished_at || match.started_at,
+    startedAt: match.started_at || null,
     competition: match.competition_name || detail?.competition_name || "FACEIT",
     matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
     demoUrl: match.demo_url?.[0] || detail?.demo_url?.[0] || null,
     teams,
-    // Convenience: my own stats at top level (used in compact match list)
+    totalRounds,
+    // Convenience: my own stats at top level (used in compact match list + aggregates)
     kills: myStats?.kills ?? null,
     deaths: myStats?.deaths ?? null,
     assists: myStats?.assists ?? null,
     kdRatio: myStats?.kdRatio ?? null,
     krRatio: myStats?.krRatio ?? null,
     adr: myStats?.adr ?? null,
+    damage: myStats?.damage ?? null,
+    headshots: myStats?.headshots ?? null,
     headshotsPct: myStats?.headshotsPct ?? null,
     mvps: myStats?.mvps ?? null,
     tripleKills: myStats?.tripleKills ?? null,
     quadroKills: myStats?.quadroKills ?? null,
     pentaKills: myStats?.pentaKills ?? null,
+    firstKills: myStats?.firstKills ?? null,
+    firstDeaths: myStats?.firstDeaths ?? null,
+    entryCount: myStats?.entryCount ?? null,
+    entryWins: myStats?.entryWins ?? null,
+    clutchKills: myStats?.clutchKills ?? null,
+    oneVOneWins: myStats?.oneVOneWins ?? null,
+    oneVOneLosses: myStats?.oneVOneLosses ?? null,
+    oneVTwoWins: myStats?.oneVTwoWins ?? null,
+    oneVTwoLosses: myStats?.oneVTwoLosses ?? null,
+    flashesThrown: myStats?.flashesThrown ?? null,
+    enemiesFlashed: myStats?.enemiesFlashed ?? null,
+    flashSuccesses: myStats?.flashSuccesses ?? null,
+    utilityDamage: myStats?.utilityDamage ?? null,
+    utilityCount: myStats?.utilityCount ?? null,
+    heCount: myStats?.heCount ?? null,
+    sniperKills: myStats?.sniperKills ?? null,
+    pistolKills: myStats?.pistolKills ?? null,
+    knifeKills: myStats?.knifeKills ?? null,
+    zeusKills: myStats?.zeusKills ?? null,
   };
 }
 
