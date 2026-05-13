@@ -2,6 +2,7 @@ import type { Profile, Stats, FaceitData } from "../lib/demoData";
 import { OverviewSection } from "./OverviewSection";
 import { WeaponsSection } from "./WeaponsSection";
 import { MapsSection } from "./MapsSection";
+import { SkinsSection } from "./SkinsSection";
 import { FaceitSection } from "./FaceitSection";
 import { FaceitAggregate } from "./FaceitAggregate";
 import { FaceitMapPerformance } from "./FaceitMapPerformance";
@@ -49,31 +50,36 @@ export function Dashboard({
         <MapsSection maps={stats.maps} />
       </section>
 
+      <section id="skins" className="mt-12 scroll-mt-20">
+        <SectionHeader number="04" title="CS2 Skin Inventory" subtitle="Loadout & market values from Steam Community" badge="steam" />
+        <SkinsSection isDemo={isDemo} />
+      </section>
+
       {/* ─── FACEIT (Competitive matchmaking only — kept separate from Steam) ─── */}
       <SourceDivider source="faceit" label="FACEIT Data" note="Competitive matchmaking only · Never combined with Steam stats above" />
 
       <section id="faceit" className="mt-6 scroll-mt-20">
-        <SectionHeader number="04" title="FACEIT Profile" subtitle="Skill level, ELO & per-map breakdown" badge="faceit" />
+        <SectionHeader number="05" title="FACEIT Profile" subtitle="Skill level, ELO & per-map breakdown" badge="faceit" />
         <FaceitSection faceit={faceit} />
       </section>
 
       <section id="faceit-stats" className="mt-12 scroll-mt-20">
-        <SectionHeader number="05" title="FACEIT Aggregate Stats" subtitle="Lifetime + recent form, separately tracked" badge="faceit" />
+        <SectionHeader number="06" title="FACEIT Aggregate Stats" subtitle="Lifetime + recent form, separately tracked" badge="faceit" />
         <FaceitAggregate faceit={faceit} />
       </section>
 
       <section id="faceit-maps" className="mt-12 scroll-mt-20">
-        <SectionHeader number="06" title="FACEIT Map Performance" subtitle="Per-map FACEIT stats — completely separate from Steam maps" badge="faceit" />
+        <SectionHeader number="07" title="FACEIT Map Performance" subtitle="Per-map FACEIT stats — completely separate from Steam maps" badge="faceit" />
         <FaceitMapPerformance faceit={faceit} />
       </section>
 
       <section id="matches" className="mt-12 scroll-mt-20">
-        <SectionHeader number="07" title="Match History" subtitle="Recent FACEIT matches — click for full scoreboard" badge="faceit" />
+        <SectionHeader number="08" title="Match History" subtitle="Recent FACEIT matches — click for full scoreboard" badge="faceit" />
         <MatchHistory matches={faceit?.matches} />
       </section>
 
       <section id="demos" className="mt-12 scroll-mt-20">
-        <SectionHeader number="08" title="Match Demos" subtitle="Download & watch CS2 replay files" badge="faceit" />
+        <SectionHeader number="09" title="Match Demos" subtitle="Download & watch CS2 replay files" badge="faceit" />
         <DemosSection matches={faceit?.matches} />
       </section>
 

@@ -38,6 +38,7 @@ export function Header({
             <NavLink href="#overview">Overview</NavLink>
             <NavLink href="#weapons">Weapons</NavLink>
             <NavLink href="#maps">Maps</NavLink>
+            <NavLink href="#skins">Skins</NavLink>
           </NavGroup>
           <span className="text-cs-border">·</span>
           <NavGroup label="FACEIT" color="cs-orange">
