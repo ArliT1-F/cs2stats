@@ -73,7 +73,13 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     }
   }, [isDemo]);
 
-  useEffect(() => { load(priceSource); }, [load, priceSource]);
+  // Delay inventory fetch by 1.5s to avoid racing the streaming load fetches.
+  // Safari iOS will crash the tab if too many fetches fire at once during the
+  // post-Steam-OpenID navigation window.
+  useEffect(() => {
+    const t = setTimeout(() => load(priceSource), 1500);
+    return () => clearTimeout(t);
+  }, [load, priceSource]);
 
   if (loading && !data) {
     return (

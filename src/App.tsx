@@ -70,13 +70,11 @@ export default function App() {
   const fetchSession = useCallback(async () => {
     setLoading(true);
     try {
-      // STREAMING LOAD: fire both requests in parallel. The dashboard renders
-      // as soon as /api/me-basic resolves (under 1 sec). FACEIT data arrives
-      // later (typically 3-5 sec) and merges into the existing session.
-      const basicPromise = fetch("/api/me-basic", { credentials: "include" });
-      const faceitPromise = fetch("/api/me-faceit", { credentials: "include" });
-
-      const basicResp = await basicPromise;
+      // SEQUENTIAL LOAD: fetch Steam basic data first, render the dashboard,
+      // THEN fetch FACEIT data after a short delay. This avoids the Safari iOS
+      // crash where firing 3+ parallel fetches right after a Steam OpenID
+      // navigation triggers the browser's "page misbehaving" heuristic.
+      const basicResp = await fetch("/api/me-basic", { credentials: "include" });
       if (!basicResp.ok) { setSession(null); setLoading(false); return; }
       const basic = await basicResp.json();
 
@@ -91,16 +89,19 @@ export default function App() {
       });
       setLoading(false);
 
-      // Stream FACEIT data in when ready
-      try {
-        const faceitResp = await faceitPromise;
-        if (faceitResp.ok) {
-          const faceit = await faceitResp.json();
-          setSession((prev) => prev ? { ...prev, faceit } : prev);
+      // Wait one tick so the dashboard paints, THEN fetch FACEIT.
+      // This keeps Safari iOS happy during the post-OpenID navigation window.
+      setTimeout(async () => {
+        try {
+          const faceitResp = await fetch("/api/me-faceit", { credentials: "include" });
+          if (faceitResp.ok) {
+            const faceit = await faceitResp.json();
+            setSession((prev) => prev ? { ...prev, faceit } : prev);
+          }
+        } catch {
+          // FACEIT failure is non-fatal
         }
-      } catch {
-        // FACEIT failure is non-fatal — Steam data still works
-      }
+      }, 250);
     } catch {
       setSession(null);
       setLoading(false);
