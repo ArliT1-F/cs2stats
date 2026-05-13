@@ -1,14 +1,22 @@
 // Fetches the logged-in user's CS2 inventory from Steam Community + bulk prices
-// from the cached BUFF163 price database.
+// from the cached price database.
 //
-// IMPORTANT NOTES:
-//   - Valve does NOT expose "currently equipped loadout" via any public API.
-//     We show all skins grouped by weapon category and highlight the most
-//     valuable per slot as a sensible loadout proxy.
-//   - Steam paginates inventories. We loop with start_assetid until done.
-//   - Prices come from a bulk JSON dump (csgotrader.app's BUFF163 mirror)
-//     cached in memory for 30 minutes. Far faster + more complete than calling
-//     Steam Market priceoverview per item.
+// IMPORTANT NOTES on the Steam Community inventory endpoint:
+//   - Endpoint: https://steamcommunity.com/inventory/{steamid}/730/2
+//   - `count` param: 2000 max, but Steam often returns far fewer per page
+//     (sometimes ~75 even when you ask for 2000). Don't trust the page size.
+//   - Pagination: `more_items: 1` + `last_assetid` in the response means
+//     more pages exist. Pass `last_assetid` as `start_assetid` to get the next.
+//   - `total_inventory_count` tells you the real total — use it to verify
+//     completeness and as a stopping condition.
+//   - Rate limit: roughly 5–10 requests per minute per IP. Heavily enforced.
+//
+// IMPORTANT NOTES on item categorization:
+//   - Steam tags use the prefix `CSGO_Type_*`, not `Type_*` (common mistake).
+//   - Item type internal_names: CSGO_Type_Pistol, CSGO_Type_Rifle, CSGO_Type_SMG,
+//     CSGO_Type_SniperRifle, CSGO_Type_Shotgun, CSGO_Type_Machinegun,
+//     CSGO_Type_Knife, CSGO_Type_Hands (gloves), CSGO_Type_WeaponCase,
+//     CSGO_Type_Collectible, CSGO_Type_Sticker, CSGO_Type_Spray, etc.
 
 import { getPricesBulk, getCacheStatus } from "./_priceCache.js";
 
@@ -23,26 +31,41 @@ function parseCookies(req) {
   );
 }
 
-// --- Steam inventory fetch (with pagination) ------------------------------
-// Returns { data: { assets, descriptions }, partial: bool, pagesFetched, ... }
+// --- Steam inventory fetch (with proper pagination) ----------------------
 async function fetchInventory(steamId) {
   const headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
     Accept: "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
     Referer: `https://steamcommunity.com/profiles/${steamId}/inventory/`,
+    "X-Requested-With": "XMLHttpRequest",
   };
 
-  const PER_PAGE = 1000;
-  const MAX_PAGES = 8; // up to 8000 items
+  // Steam caps `count` at 2000 for the inventory endpoint, but in practice
+  // returns fewer items per response (sometimes ~75 even with count=2000).
+  // We always request the max and rely on `more_items` + `last_assetid` for
+  // pagination, with `total_inventory_count` as a sanity check.
+  const PER_PAGE = 2000;
+  const MAX_PAGES = 30; // safety cap; most inventories <30k items
+  const SOFT_DELAY_MS = 1500; // generous between pages to avoid 429
+  const RETRY_DELAY_MS = 5000;
+
   const assets = [];
   const descMap = new Map();
+  const seenAssetIds = new Set();
   const diagnostics = {
+    totalInventoryCount: null,
     pagesFetched: 0,
     pagesAttempted: 0,
     httpStatuses: [],
     rateLimitHits: 0,
+    consecutiveRetries: 0,
+    perPageCounts: [],
+    duplicatesSkipped: 0,
     lastError: null,
+    stoppedReason: null,
   };
 
   let lastAssetId = null;
@@ -58,6 +81,7 @@ async function fetchInventory(steamId) {
       r = await fetch(url, { headers });
     } catch (e) {
       diagnostics.lastError = String(e);
+      diagnostics.stoppedReason = "fetch_error";
       break;
     }
     diagnostics.httpStatuses.push(r.status);
@@ -67,27 +91,55 @@ async function fetchInventory(steamId) {
     }
     if (r.status === 429) {
       diagnostics.rateLimitHits++;
-      // If we already have items, return them as partial; otherwise hard fail
+      // Retry once after a longer wait — Steam often unblocks quickly
+      if (diagnostics.consecutiveRetries < 1) {
+        diagnostics.consecutiveRetries++;
+        await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
+        page--; // retry same page
+        continue;
+      }
+      // Give up but keep what we have
       if (assets.length === 0) return { error: "rate_limited", diagnostics };
+      diagnostics.stoppedReason = "rate_limited";
       break;
     }
+    diagnostics.consecutiveRetries = 0;
+
     if (!r.ok) {
       if (assets.length === 0) return { error: `inventory_${r.status}`, diagnostics };
+      diagnostics.stoppedReason = `http_${r.status}`;
       break;
     }
 
     let j;
     try { j = await r.json(); } catch (e) {
       diagnostics.lastError = `parse: ${e}`;
+      diagnostics.stoppedReason = "parse_error";
       break;
     }
     if (!j || j.success === false) {
       if (assets.length === 0) return { error: "empty_inventory", diagnostics };
+      diagnostics.stoppedReason = "success_false";
       break;
     }
 
+    if (typeof j.total_inventory_count === "number") {
+      diagnostics.totalInventoryCount = j.total_inventory_count;
+    }
+
+    // Collect assets, dedupe by asset id (defensive — Steam rarely duplicates
+    // but we've seen it on retries).
+    let pageAssetCount = 0;
     if (Array.isArray(j.assets)) {
-      for (const a of j.assets) assets.push(a);
+      for (const a of j.assets) {
+        if (seenAssetIds.has(a.assetid)) {
+          diagnostics.duplicatesSkipped++;
+          continue;
+        }
+        seenAssetIds.add(a.assetid);
+        assets.push(a);
+        pageAssetCount++;
+      }
     }
     if (Array.isArray(j.descriptions)) {
       for (const d of j.descriptions) {
@@ -95,58 +147,99 @@ async function fetchInventory(steamId) {
       }
     }
     diagnostics.pagesFetched++;
+    diagnostics.perPageCounts.push(pageAssetCount);
 
-    // Stop if no more pages
-    if (!j.more_items || !j.last_assetid || j.last_assetid === lastAssetId) break;
+    // Decide whether to continue pagination
+    const hasMore = j.more_items === 1 || j.more_items === true;
+    const haveAll = diagnostics.totalInventoryCount !== null
+      && assets.length >= diagnostics.totalInventoryCount;
+    const noProgress = pageAssetCount === 0; // safety: if Steam stopped giving items
+
+    if (haveAll) {
+      diagnostics.stoppedReason = "complete";
+      break;
+    }
+    if (!hasMore && !noProgress) {
+      diagnostics.stoppedReason = "no_more_items_flag";
+      break;
+    }
+    if (noProgress && !hasMore) {
+      diagnostics.stoppedReason = "no_progress";
+      break;
+    }
+    if (!j.last_assetid) {
+      diagnostics.stoppedReason = "no_last_assetid";
+      break;
+    }
+    if (j.last_assetid === lastAssetId) {
+      // Same cursor as before — would loop forever. Stop.
+      diagnostics.stoppedReason = "cursor_unchanged";
+      break;
+    }
     lastAssetId = j.last_assetid;
-    // Brief delay between pages
-    await new Promise((r) => setTimeout(r, 300));
+
+    // Generous delay between pages to avoid the 429 cliff
+    await new Promise((res) => setTimeout(res, SOFT_DELAY_MS));
   }
 
   if (assets.length === 0) {
     return { error: "empty_inventory", diagnostics };
   }
+  // Partial = we have items but didn't reach total_inventory_count
+  const partial = diagnostics.totalInventoryCount !== null
+    && assets.length < diagnostics.totalInventoryCount;
   return {
     data: { assets, descriptions: Array.from(descMap.values()) },
-    partial: diagnostics.rateLimitHits > 0 || diagnostics.lastError !== null,
+    partial,
     diagnostics,
   };
 }
 
-// --- Item categorization (CS2 weapon families) ---------------------------
-// We detect categories from BOTH the `tags` array (most reliable) AND the
-// market_hash_name as a fallback.
+// --- Item categorization ------------------------------------------------
+// PRIMARY signal: Steam's `tags` array. Internal names use `CSGO_Type_*` prefix.
+// SECONDARY signal: market_hash_name pattern matching as a fallback.
 
 const NAME_PATTERNS = {
-  Rifle: ["AK-47","M4A4","M4A1-S","AUG","SG 553","FAMAS","Galil AR"],
+  Rifle:  ["AK-47","M4A4","M4A1-S","AUG","SG 553","FAMAS","Galil AR"],
   Sniper: ["AWP","SSG 08","SCAR-20","G3SG1"],
   Pistol: ["Desert Eagle","USP-S","Glock-18","P2000","P250","Five-SeveN","CZ75-Auto","Tec-9","Dual Berettas","R8 Revolver"],
-  SMG: ["MP9","MP7","MP5-SD","UMP-45","P90","PP-Bizon","MAC-10"],
-  Heavy: ["Nova","XM1014","Sawed-Off","MAG-7","M249","Negev"],
+  SMG:    ["MP9","MP7","MP5-SD","UMP-45","P90","PP-Bizon","MAC-10"],
+  Heavy:  ["Nova","XM1014","Sawed-Off","MAG-7","M249","Negev"],
 };
 
 function categorize(item) {
   const name = item.market_hash_name || item.name || "";
-  const type = (item.type || "").toLowerCase();
   const tags = item.tags || [];
 
-  // Detect category from tags first (most reliable across languages)
+  // PRIMARY: Steam's Type tag — most reliable, language-independent
   const typeTag = tags.find((t) => t.category === "Type")?.internal_name || "";
+  switch (typeTag) {
+    case "CSGO_Type_Pistol":      return "Pistol";
+    case "CSGO_Type_SMG":         return "SMG";
+    case "CSGO_Type_Rifle":       return "Rifle";
+    case "CSGO_Type_SniperRifle": return "Sniper";
+    case "CSGO_Type_Shotgun":     return "Heavy";   // Nova, XM1014, Sawed-Off, MAG-7
+    case "CSGO_Type_Machinegun":  return "Heavy";   // M249, Negev
+    case "CSGO_Type_Knife":       return "Knife";
+    case "CSGO_Type_Hands":       return "Gloves";
+    case "CSGO_Type_WeaponCase":  return "Case";
+    case "CSGO_Type_Sticker":     return "Sticker";
+    case "CSGO_Type_Spray":       return "Graffiti";
+    case "CSGO_Type_MusicKit":    return "Music Kit";
+    case "CSGO_Type_Patch":       return "Patch";
+    case "CSGO_Type_Tool":        return "Tool";
+    case "CSGO_Type_Collectible": return "Collectible";
+    case "CSGO_Type_CustomPlayer":return "Agent";
+    case "CSGO_Type_Pin":         return "Collectible";
+    case "CSGO_Type_Charm":       return "Charm";
+    case "CSGO_Type_Keychain":    return "Charm";
+  }
+
+  // Knife shortcut: Steam prefixes ALL knife skins with ★
+  if (name.startsWith("★")) return "Knife";
+
+  // SECONDARY: Weapon tag → category mapping
   const weaponTag = tags.find((t) => t.category === "Weapon")?.internal_name || "";
-
-  if (typeTag === "Type_Hands" || type.includes("gloves") || type.includes("hand wraps")) return "Gloves";
-  if (typeTag === "Type_Knife" || type.includes("knife") || name.startsWith("★")) return "Knife";
-  if (typeTag === "Type_CustomPlayer" || type.includes("agent")) return "Agent";
-  if (typeTag === "Type_WeaponCase" || type.includes("case")) return "Case";
-  if (typeTag === "Type_Sticker" || type.includes("sticker")) return "Sticker";
-  if (typeTag === "Type_Spray" || type.includes("graffiti")) return "Graffiti";
-  if (typeTag === "Type_MusicKit" || type.includes("music kit")) return "Music Kit";
-  if (typeTag === "Type_Patch" || type.includes("patch")) return "Patch";
-  if (typeTag === "Type_Tool" || type.includes("key") || type.includes("tool") || type.includes("pass")) return "Tool";
-  if (typeTag === "Type_Pin" || type.includes("collectible") || type.includes("pin") || type.includes("coin")) return "Collectible";
-  if (typeTag === "Type_Charm" || type.includes("charm") || type.includes("keychain")) return "Charm";
-
-  // Use weapon tag if present
   if (weaponTag) {
     const w = weaponTag.replace(/^weapon_/, "");
     if (["ak47","m4a1","m4a1_silencer","aug","sg556","famas","galilar"].includes(w)) return "Rifle";
@@ -154,21 +247,20 @@ function categorize(item) {
     if (["deagle","glock","hkp2000","usp_silencer","p250","fiveseven","tec9","cz75a","revolver","elite"].includes(w)) return "Pistol";
     if (["mp9","mp7","mp5sd","ump45","p90","bizon","mac10"].includes(w)) return "SMG";
     if (["nova","xm1014","sawedoff","mag7","m249","negev"].includes(w)) return "Heavy";
+    if (w.startsWith("knife")) return "Knife";
   }
 
-  // Fall back to name-pattern matching
+  // TERTIARY: pure name-pattern matching
   for (const [cat, weapons] of Object.entries(NAME_PATTERNS)) {
-    for (const w of weapons) {
-      if (name.includes(w)) return cat;
-    }
+    for (const w of weapons) if (name.includes(w)) return cat;
   }
+
   return "Other";
 }
 
 function extractWeaponName(marketHashName) {
   // "AK-47 | Asiimov (Field-Tested)" → "AK-47"
-  // "★ Karambit | Doppler (Factory New)" → "Karambit"
-  // "★ StatTrak™ Karambit | Fade" → "Karambit"
+  // "★ StatTrak™ Karambit | Fade (FN)" → "Karambit"
   const cleaned = marketHashName
     .replace(/^StatTrak™\s*/i, "")
     .replace(/^★\s*StatTrak™\s*/i, "")
@@ -189,8 +281,6 @@ function extractWear(marketHashName) {
   return m ? m[1] : null;
 }
 
-// --- Internal weapon-key lookup from market_hash_name ---------------------
-// Maps a display name like "AK-47" → "ak47", "M4A1-S" → "m4a1_silencer"
 const WEAPON_NAME_TO_KEY = {
   "AK-47": "ak47",
   "M4A4": "m4a1",
@@ -236,7 +326,7 @@ export default async function handler(req, res) {
   if (!steamId) return res.status(401).json({ error: "Not logged in" });
 
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const priceSource = url.searchParams.get("source") || "buff163"; // buff163 | steam
+  const priceSource = url.searchParams.get("source") || "buff163";
   const debug = url.searchParams.get("debug") === "1";
 
   const inv = await fetchInventory(steamId);
@@ -258,10 +348,9 @@ export default async function handler(req, res) {
     descMap[`${d.classid}_${d.instanceid}`] = d;
   }
 
-  // Build items. Don't filter anything that has a description — let users see
-  // their full inventory.
   const items = [];
   const skipReasons = { no_description: 0 };
+  const categoryCounts = {};
 
   for (const a of assets) {
     const desc = descMap[`${a.classid}_${a.instanceid}`];
@@ -270,6 +359,7 @@ export default async function handler(req, res) {
       continue;
     }
     const cat = categorize(desc);
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     const weaponName = extractWeaponName(desc.market_hash_name || "");
 
     items.push({
@@ -300,18 +390,15 @@ export default async function handler(req, res) {
     });
   }
 
-  // BULK price lookup — single in-memory map lookup per item
-  const allHashes = items
-    .filter((i) => i.marketable)
-    .map((i) => i.marketHashName)
-    .filter(Boolean);
+  // BULK price lookup
+  const allHashes = items.map((i) => i.marketHashName).filter(Boolean);
   const uniqueHashes = Array.from(new Set(allHashes));
   const prices = await getPricesBulk(uniqueHashes, priceSource);
   for (const it of items) {
     if (prices[it.marketHashName]) it.price = prices[it.marketHashName];
   }
 
-  // Group into categories
+  // Group by category
   const categories = {};
   let totalEstimatedValue = 0;
   for (const it of items) {
@@ -341,7 +428,7 @@ export default async function handler(req, res) {
     categories[cat].totalValue = +categories[cat].totalValue.toFixed(2);
   }
 
-  // Pick highest-value skin per weapon (loadout proxy)
+  // Best skin per weapon (loadout proxy)
   const bestPerWeapon = {};
   for (const it of items) {
     if (!["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(it.category)) continue;
@@ -355,6 +442,7 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, max-age=300");
   const payload = {
     totalItems: items.length,
+    totalInventoryCount: inv.diagnostics.totalInventoryCount,
     totalEstimatedValue: +totalEstimatedValue.toFixed(2),
     pricedCount: items.filter((i) => i.price).length,
     pricesIncluded: true,
@@ -368,9 +456,18 @@ export default async function handler(req, res) {
     payload.debug = {
       inventory: inv.diagnostics,
       skipReasons,
+      categoryCounts,
       priceCache: getCacheStatus(),
       uniqueHashesQueried: uniqueHashes.length,
       pricesFound: Object.keys(prices).length,
+      // Top 10 most-recent items for sanity-check
+      sampleItems: items.slice(0, 10).map((i) => ({
+        name: i.marketHashName,
+        category: i.category,
+        weapon: i.weapon,
+        rarity: i.rarity,
+        hasPrice: !!i.price,
+      })),
     };
   }
   res.json(payload);
