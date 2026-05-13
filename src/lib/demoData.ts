@@ -20,6 +20,7 @@ function seeded(seedStr: string) {
 
 export interface WeaponStat {
   name: string;
+  key?: string;  // Internal Steam stat key (e.g. "ak47", "m4a1_silencer") — used as a fallback for icon lookup
   kills: number;
   shots: number;
   hits: number;
@@ -199,16 +200,20 @@ export function generateDemoStats(seed = "demo"): Stats {
   const rounds = r(8000, 30000);
   const wins = Math.floor(rounds * (0.45 + rng() * 0.15));
 
-  const weaponPool = [
-    "AK47","M4A1-S","AWP","DEAGLE","USP-S","GLOCK","M4A4","FAMAS","GALIL",
-    "SG553","AUG","MP9","MP7","UMP45","P90","NOVA","XM1014","MAC10","KNIFE","HE GRENADE",
+  const weaponPool: Array<[string, string]> = [
+    ["AK-47", "ak47"], ["M4A4", "m4a1"], ["M4A1-S", "m4a1_silencer"],
+    ["AWP", "awp"], ["Desert Eagle", "deagle"], ["USP-S", "usp_silencer"],
+    ["Glock-18", "glock"], ["FAMAS", "famas"], ["Galil AR", "galilar"],
+    ["SG 553", "sg556"], ["AUG", "aug"], ["MP9", "mp9"], ["MP7", "mp7"],
+    ["UMP-45", "ump45"], ["P90", "p90"], ["Nova", "nova"], ["XM1014", "xm1014"],
+    ["MAC-10", "mac10"], ["Knife", "knife"], ["HE Grenade", "hegrenade"],
   ];
   const weapons = weaponPool
-    .map((name) => {
+    .map(([name, key]) => {
       const k = r(50, 8000);
       const shots = r(k * 4, k * 25);
       const hits = Math.floor(shots * (0.15 + rng() * 0.25));
-      return { name, kills: k, shots, hits };
+      return { name, key, kills: k, shots, hits };
     })
     .sort((a, b) => b.kills - a.kills);
 

@@ -1,25 +1,35 @@
 import { useEffect, useState, useCallback } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
 
-// Shows the user's CS2 skin inventory grouped by weapon category, with
-// market prices fetched from Steam. Active loadout proxy: highest-value
-// skin per weapon slot (Valve doesn't expose actual equipped loadout).
+// Shows the user's full CS2 skin inventory grouped by weapon category, with
+// market prices fetched from a cached price database (BUFF163 by default,
+// Steam Market available as an alternative). Active loadout proxy: highest
+// value skin per weapon slot (Valve doesn't expose actual equipped loadout).
 
-const CATEGORY_ORDER = ["Knife", "Gloves", "Rifle", "Sniper", "Pistol", "SMG", "Heavy", "Agent", "Sticker", "Other"];
+const CATEGORY_ORDER = [
+  "Knife", "Gloves", "Rifle", "Sniper", "Pistol", "SMG", "Heavy",
+  "Agent", "Sticker", "Patch", "Charm", "Music Kit", "Graffiti",
+  "Case", "Tool", "Collectible", "Other"
+];
 const CATEGORY_LABELS: Record<string, string> = {
   Knife: "Knives", Gloves: "Gloves", Rifle: "Rifles", Sniper: "Snipers",
   Pistol: "Pistols", SMG: "SMGs", Heavy: "Heavy", Agent: "Agents",
-  Sticker: "Stickers", Other: "Other",
+  Sticker: "Stickers", Patch: "Patches", Charm: "Charms",
+  "Music Kit": "Music Kits", Graffiti: "Graffiti",
+  Case: "Cases", Tool: "Tools / Keys", Collectible: "Collectibles",
+  Other: "Other",
 };
+
+type PriceSource = "buff163" | "steam";
 
 export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const [data, setData] = useState<InventoryResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [withPrices, setWithPrices] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("Knife");
+  const [priceSource, setPriceSource] = useState<PriceSource>("buff163");
 
-  const load = useCallback(async (prices: boolean) => {
+  const load = useCallback(async (source: PriceSource) => {
     if (isDemo) {
       setData(generateDemoInventory());
       return;
@@ -27,34 +37,30 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`/api/inventory${prices ? "?prices=1&maxPrices=30" : ""}`, {
-        credentials: "include",
-      });
+      const r = await fetch(`/api/inventory?source=${source}`, { credentials: "include" });
       if (!r.ok) {
         setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
         setLoading(false);
         return;
       }
       const j: InventoryResponse = await r.json();
-      if (j.error) {
-        setError(j.message || j.error);
-      }
+      if (j.error) setError(j.message || j.error);
       setData(j);
-    } catch (e) {
+    } catch {
       setError("Failed to load inventory");
     } finally {
       setLoading(false);
     }
   }, [isDemo]);
 
-  useEffect(() => { load(false); }, [load]);
+  useEffect(() => { load(priceSource); }, [load, priceSource]);
 
   if (loading && !data) {
     return (
       <div className="flex h-48 items-center justify-center border border-cs-border bg-cs-panel clip-corner">
         <div className="text-center">
           <div className="mx-auto mb-3 h-8 w-8 animate-spin border-2 border-cs-orange border-t-transparent" />
-          <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FETCHING INVENTORY</div>
+          <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FETCHING INVENTORY + PRICES</div>
         </div>
       </div>
     );
@@ -86,49 +92,58 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const cat = data.categories[activeCategory] || (categoriesPresent[0] && data.categories[categoriesPresent[0]]);
   const currentCategory = data.categories[activeCategory] ? activeCategory : categoriesPresent[0];
 
-  // Best loadout: top-valued items grouped by weapon
   const best = Object.values(data.bestPerWeapon || {}).sort((a, b) =>
     (b.price?.lowestPrice || 0) - (a.price?.lowestPrice || 0)
   );
 
+  const sourceLabel = priceSource === "buff163" ? "BUFF163" : "Steam Market";
+
   return (
     <div className="space-y-5">
-      {/* Summary banner */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Top bar: summary + price-source toggle */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <SummaryCard label="Total Items" value={data.totalItems?.toLocaleString() || "0"} />
         <SummaryCard label="Categories" value={categoriesPresent.length} />
         <SummaryCard
-          label="Priced Items"
+          label="Priced"
           value={`${data.pricedCount ?? 0} / ${data.totalItems ?? 0}`}
-          accent
         />
         <SummaryCard
-          label="Est. Total Value"
+          label={`Total Value (${sourceLabel})`}
           value={data.totalEstimatedValue ? `$${data.totalEstimatedValue.toFixed(2)}` : "—"}
           accent="text-emerald-400"
         />
+        {/* Price source toggle */}
+        <div className="border border-cs-border bg-cs-panel p-3 clip-corner">
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-widest text-slate-500">Price source</div>
+          <div className="flex">
+            <PriceSourceBtn active={priceSource === "buff163"} onClick={() => setPriceSource("buff163")}>
+              BUFF163
+            </PriceSourceBtn>
+            <PriceSourceBtn active={priceSource === "steam"} onClick={() => setPriceSource("steam")}>
+              Steam
+            </PriceSourceBtn>
+          </div>
+        </div>
       </div>
 
-      {/* Price-fetch CTA */}
-      {!withPrices && !isDemo && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border border-cs-orange/40 bg-cs-orange/10 p-4 clip-corner">
-          <div>
-            <div className="font-display font-bold uppercase tracking-wider text-cs-orange">
-              Market prices not loaded
-            </div>
-            <div className="text-sm text-slate-300">
-              Fetching prices is rate-limited by Steam (~3 sec). We'll grab the top 30 most valuable items.
-            </div>
+      {/* Partial-inventory warning */}
+      {data.partial && (
+        <div className="border border-cs-orange/40 bg-cs-orange/10 p-3 text-sm clip-corner">
+          <div className="font-display font-bold uppercase tracking-wider text-cs-orange">⚠ Partial inventory</div>
+          <div className="text-slate-300">
+            Steam stopped responding mid-fetch (rate-limited). Showing first {data.totalItems} items.
+            Refresh in a minute to retry.
           </div>
-          <button
-            onClick={() => { setWithPrices(true); load(true); }}
-            disabled={loading}
-            className="bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg disabled:opacity-50"
-          >
-            {loading ? "Loading…" : "Fetch Prices"}
-          </button>
         </div>
       )}
+
+      {/* Honest disclosure about prices */}
+      <div className="border border-cs-blue/30 bg-cs-blue/5 p-3 font-mono text-[11px] text-slate-400 clip-corner">
+        // Prices from <span className="text-cs-blue font-bold">{sourceLabel}</span>, cached server-side and refreshed every 30 minutes.
+        {priceSource === "buff163" && " BUFF163 prices are typically 10-30% lower than Steam Market (no Steam fee)."}
+        {priceSource === "steam" && " Steam Market prices include the 15% Valve fee."}
+      </div>
 
       {/* Best loadout per weapon */}
       {best.length > 0 && (
@@ -137,7 +152,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             <div>
               <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// LOADOUT (BEST PER WEAPON)</div>
               <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
-                Highest-value skin per weapon slot · Valve doesn't expose true equipped loadout
+                Highest-value skin per slot · Valve doesn't expose true equipped loadout
               </div>
             </div>
           </div>
@@ -162,20 +177,25 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             }`}
           >
             {CATEGORY_LABELS[c] || c}
-            <span className="ml-1.5 font-mono text-[10px] opacity-70">
-              {data.categories[c].count}
-            </span>
+            <span className="ml-1.5 font-mono text-[10px] opacity-70">{data.categories[c].count}</span>
           </button>
         ))}
       </div>
 
       {/* Category contents */}
       {cat && (
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {cat.items.map((item) => (
-            <SkinCard key={item.assetId} item={item} />
-          ))}
-        </div>
+        <>
+          {data.categories[currentCategory]?.totalValue !== undefined && data.categories[currentCategory].totalValue > 0 && (
+            <div className="font-mono text-xs uppercase tracking-widest text-slate-500">
+              Category total: <span className="text-emerald-400">${data.categories[currentCategory].totalValue.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {cat.items.map((item) => (
+              <SkinCard key={item.assetId} item={item} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -191,6 +211,19 @@ function SummaryCard({ label, value, accent }: { label: string; value: number | 
   );
 }
 
+function PriceSourceBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 px-2 py-1 font-display text-xs font-bold uppercase tracking-wider transition ${
+        active ? "bg-cs-orange text-cs-bg" : "text-slate-400 hover:text-white"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
   const rarityHex = item.rarityColor || "#94a3b8";
   return (
@@ -201,24 +234,20 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
       className="group relative block overflow-hidden border bg-cs-panel transition hover:bg-cs-bg"
       style={{ borderColor: `${rarityHex}40` }}
     >
-      {/* Rarity stripe */}
       <div className="h-1 w-full" style={{ background: rarityHex }} />
 
-      {/* Top-right badges */}
       <div className="absolute right-2 top-3 z-10 flex flex-col gap-1">
         {item.stattrak && (
-          <span className="bg-orange-500 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-white">
-            ST
-          </span>
+          <span className="bg-orange-500 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-white">ST</span>
         )}
         {item.souvenir && (
-          <span className="bg-amber-400 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-amber-900">
-            SOUV
-          </span>
+          <span className="bg-amber-400 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-amber-900">SOUV</span>
+        )}
+        {!item.tradable && (
+          <span className="bg-cs-red/70 px-1.5 py-0.5 font-display text-[9px] font-black uppercase tracking-widest text-white" title="Not tradable">🔒</span>
         )}
       </div>
 
-      {/* Skin image */}
       <div className={`relative flex items-center justify-center bg-gradient-to-b from-cs-bg/40 to-cs-bg/0 ${compact ? "h-24" : "h-32"}`}>
         {item.iconUrl ? (
           <img
@@ -230,35 +259,20 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
         ) : (
           <div className="font-mono text-xs text-slate-500">no image</div>
         )}
-        {/* Glow */}
-        <div
-          className="absolute inset-x-4 bottom-0 h-12 opacity-30 blur-2xl"
-          style={{ background: rarityHex }}
-        />
+        <div className="absolute inset-x-4 bottom-0 h-12 opacity-30 blur-2xl" style={{ background: rarityHex }} />
       </div>
 
       <div className="p-3">
-        <div className="truncate font-display text-sm font-bold uppercase tracking-tight text-white">
-          {item.weapon}
-        </div>
-        <div className="truncate font-mono text-[11px] text-slate-400">
-          {item.skin || "—"}
-        </div>
+        <div className="truncate font-display text-sm font-bold uppercase tracking-tight text-white">{item.weapon}</div>
+        <div className="truncate font-mono text-[11px] text-slate-400">{item.skin || "—"}</div>
 
         <div className="mt-2 flex items-end justify-between gap-2">
           <div>
             {item.wear && (
-              <div className="font-mono text-[9px] uppercase tracking-widest text-slate-500">
-                {abbreviateWear(item.wear)}
-              </div>
+              <div className="font-mono text-[9px] uppercase tracking-widest text-slate-500">{abbreviateWear(item.wear)}</div>
             )}
             {item.rarity && (
-              <div
-                className="font-mono text-[9px] uppercase tracking-widest"
-                style={{ color: rarityHex }}
-              >
-                {item.rarity}
-              </div>
+              <div className="font-mono text-[9px] uppercase tracking-widest" style={{ color: rarityHex }}>{item.rarity}</div>
             )}
           </div>
           <div className="text-right">
@@ -267,10 +281,8 @@ function SkinCard({ item, compact }: { item: SkinItem; compact?: boolean }) {
                 <div className="font-display text-base font-bold text-emerald-400">
                   {item.price.raw || `$${item.price.lowestPrice.toFixed(2)}`}
                 </div>
-                {item.price.volume && (
-                  <div className="font-mono text-[9px] text-slate-500">
-                    {item.price.volume} sold/24h
-                  </div>
+                {item.price.source && (
+                  <div className="font-mono text-[9px] text-slate-500">{item.price.source}</div>
                 )}
               </>
             ) : (
@@ -342,6 +354,7 @@ function generateDemoInventory(): InventoryResponse {
     pricesIncluded: true,
     pricedCount: items.filter((i) => i.price).length,
     currency: 1,
+    priceSource: "buff163",
     categories,
     bestPerWeapon,
   };
@@ -356,12 +369,14 @@ function mkItem(
     assetId: `demo-${Math.random().toString(36).slice(2, 9)}`,
     classId: "0", instanceId: "0",
     name: hashName, marketHashName: hashName,
-    weapon, skin, wear,
+    weapon,
+    weaponKey: null,
+    skin, wear,
     iconUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(weapon + skin)}&backgroundColor=11172a`,
     iconUrlLarge: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(weapon + skin)}&backgroundColor=11172a&size=256`,
     rarityColor, rarity, type: null,
     stattrak, souvenir, category,
     tradable: true, marketable: true,
-    price: { lowestPrice: price, medianPrice: price, volume: Math.floor(Math.random() * 500), raw },
+    price: { lowestPrice: price, medianPrice: price, volume: Math.floor(Math.random() * 500), source: "demo", raw },
   };
 }

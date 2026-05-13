@@ -338,17 +338,56 @@ function transformSteamStats(rawStats) {
   // If everything is zero, the account never played CS2
   if (totalKills === 0 && totalDeaths === 0 && rounds === 0) return null;
 
+  // [steam_stat_key, display_name]
+  // NOTE: Steam's CS:GO/CS2 schema uses confusing legacy keys. `m4a1` actually
+  // tracks the M4A4 (def_index 16). The M4A1-S has its own separate key.
   const weaponNames = [
-    "ak47","m4a1","awp","glock","hkp2000","usp_silencer","deagle","p250",
-    "famas","galilar","sg556","aug","ssg08","mp9","mp7","ump45","mac10",
-    "p90","bizon","nova","xm1014","sawedoff","mag7","negev","m249","scar20","g3sg1","knife"
+    ["ak47", "AK-47"],
+    ["m4a1", "M4A4"],
+    ["m4a1_silencer", "M4A1-S"],
+    ["awp", "AWP"],
+    ["glock", "Glock-18"],
+    ["hkp2000", "P2000"],
+    ["usp_silencer", "USP-S"],
+    ["deagle", "Desert Eagle"],
+    ["p250", "P250"],
+    ["fiveseven", "Five-SeveN"],
+    ["elite", "Dual Berettas"],
+    ["tec9", "Tec-9"],
+    ["cz75a", "CZ75-Auto"],
+    ["revolver", "R8 Revolver"],
+    ["famas", "FAMAS"],
+    ["galilar", "Galil AR"],
+    ["sg556", "SG 553"],
+    ["aug", "AUG"],
+    ["ssg08", "SSG 08"],
+    ["scar20", "SCAR-20"],
+    ["g3sg1", "G3SG1"],
+    ["mp9", "MP9"],
+    ["mp7", "MP7"],
+    ["mp5sd", "MP5-SD"],
+    ["ump45", "UMP-45"],
+    ["mac10", "MAC-10"],
+    ["p90", "P90"],
+    ["bizon", "PP-Bizon"],
+    ["nova", "Nova"],
+    ["xm1014", "XM1014"],
+    ["sawedoff", "Sawed-Off"],
+    ["mag7", "MAG-7"],
+    ["negev", "Negev"],
+    ["m249", "M249"],
+    ["knife", "Knife"],
+    ["taser", "Zeus x27"],
+    ["hegrenade", "HE Grenade"],
+    ["molotov", "Molotov"],
   ];
   const weapons = weaponNames
-    .map((w) => ({
-      name: w.toUpperCase().replace("_SILENCER", " (S)"),
-      kills: map[`total_kills_${w}`] || 0,
-      shots: map[`total_shots_${w}`] || 0,
-      hits: map[`total_hits_${w}`] || 0,
+    .map(([key, displayName]) => ({
+      name: displayName,
+      key, // Internal Steam key for icon lookup fallback
+      kills: map[`total_kills_${key}`] || 0,
+      shots: map[`total_shots_${key}`] || 0,
+      hits: map[`total_hits_${key}`] || 0,
     }))
     .filter((w) => w.kills > 0)
     .sort((a, b) => b.kills - a.kills);

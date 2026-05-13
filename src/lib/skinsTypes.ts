@@ -4,6 +4,7 @@ export interface SkinPrice {
   lowestPrice: number | null;
   medianPrice: number | null;
   volume: number | null;
+  source?: string;
   raw: string | null;
 }
 
@@ -14,6 +15,7 @@ export interface SkinItem {
   name: string;
   marketHashName: string;
   weapon: string;
+  weaponKey?: string | null;
   skin: string | null;
   wear: string | null;
   iconUrl: string | null;
@@ -43,6 +45,15 @@ export interface InventoryResponse {
   pricesIncluded?: boolean;
   pricedCount?: number;
   currency?: number;
+  priceSource?: string;
+  partial?: boolean;
+  diagnostics?: {
+    pagesFetched?: number;
+    pagesAttempted?: number;
+    httpStatuses?: number[];
+    rateLimitHits?: number;
+    lastError?: string | null;
+  };
   categories: Record<string, SkinCategory>;
   bestPerWeapon?: Record<string, SkinItem>;
 }
