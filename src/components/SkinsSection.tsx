@@ -1,34 +1,46 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
 import { useCurrency } from "../lib/currency";
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CS2 Skin Inventory display.
+//
+// Architecture choice: this file uses a SHELL + INNER pattern to guarantee
+// the Rules of Hooks are never violated. The shell only fetches data and
+// decides between three states (loading / error / loaded). Each state renders
+// a different stateless component. No hooks live in any conditional path,
+// because each state is its own component instance.
+//
+// This avoids React error #310 ("Rendered more hooks than during the previous
+// render") which previously bit us when hooks were placed mid-function below
+// early returns.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 const LOADOUT_OVERRIDE_KEY = "cs2tracker:loadout_overrides";
 
-// User-editable equip overrides — keyed by weapon name → assetId. Stored in
-// localStorage. Lets users mark any of their owned skins as "equipped" since
-// Valve doesn't expose the real CS2 loadout via API.
-function getLoadoutOverrides(): Record<string, string> {
+function safeGetOverrides(): Record<string, string> {
   try {
     const raw = localStorage.getItem(LOADOUT_OVERRIDE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
 }
-function setLoadoutOverride(weapon: string, assetId: string | null) {
-  const all = getLoadoutOverrides();
-  if (assetId === null) delete all[weapon];
-  else all[weapon] = assetId;
-  try { localStorage.setItem(LOADOUT_OVERRIDE_KEY, JSON.stringify(all)); } catch {}
+function safeSetOverride(weapon: string, assetId: string | null) {
+  try {
+    const all = safeGetOverrides();
+    if (assetId === null) delete all[weapon];
+    else all[weapon] = assetId;
+    localStorage.setItem(LOADOUT_OVERRIDE_KEY, JSON.stringify(all));
+  } catch {}
 }
-
-// Shows the user's full CS2 skin inventory grouped by weapon category, with
-// market prices fetched from a cached price database (BUFF163 by default,
-// Steam Market available as an alternative). Active loadout proxy: highest
-// value skin per weapon slot (Valve doesn't expose actual equipped loadout).
 
 const CATEGORY_ORDER = [
   "Knife", "Gloves", "Rifle", "Sniper", "Pistol", "SMG", "Heavy",
   "Agent", "Sticker", "Patch", "Charm", "Music Kit", "Graffiti",
-  "Case", "Tool", "Collectible", "Other"
+  "Case", "Tool", "Collectible", "Other",
 ];
 const CATEGORY_LABELS: Record<string, string> = {
   Knife: "Knives", Gloves: "Gloves", Rifle: "Rifles", Sniper: "Snipers",
@@ -41,16 +53,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type PriceSource = "buff163" | "steam";
 
+// ─────────────────────────────────────────────────────────────────────────
+// SHELL — handles fetching and decides which sub-view to render.
+// All hooks live here. No conditional hooks.
+// ─────────────────────────────────────────────────────────────────────────
 export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const [data, setData] = useState<InventoryResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>("Knife");
   const [priceSource, setPriceSource] = useState<PriceSource>("buff163");
 
   const load = useCallback(async (source: PriceSource) => {
     if (isDemo) {
       setData(generateDemoInventory());
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -59,7 +75,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       const r = await fetch(`/api/inventory?source=${source}`, { credentials: "include" });
       if (!r.ok) {
         setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
-        setLoading(false);
+        setData(null);
         return;
       }
       const j: InventoryResponse = await r.json();
@@ -74,71 +90,113 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
 
   useEffect(() => { load(priceSource); }, [load, priceSource]);
 
-  if (loading && !data) {
-    return (
-      <div className="flex h-48 items-center justify-center border border-cs-border bg-cs-panel clip-corner">
-        <div className="text-center">
-          <div className="mx-auto mb-3 h-8 w-8 animate-spin border-2 border-cs-orange border-t-transparent" />
-          <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FETCHING INVENTORY + PRICES</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && !data?.categories) {
-    return (
-      <div className="border border-cs-border bg-cs-panel p-6 text-center clip-corner">
-        <div className="font-mono text-xs uppercase tracking-widest text-cs-red">// {error}</div>
-        {error.includes("private") && (
-          <div className="mt-3">
-            <a
-              href="https://steamcommunity.com/my/edit/settings"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg"
-            >
-              Open Steam Privacy Settings ↗
-            </a>
-          </div>
-        )}
-      </div>
-    );
-  }
-
+  // Defensively pick a sub-view. None of these branches use hooks.
+  if (loading && !data) return <LoadingView />;
+  if (error && !data?.categories) return <ErrorView message={error} />;
   if (!data || !data.categories) return null;
 
-  const categoriesPresent = CATEGORY_ORDER.filter((c) => data.categories[c]?.items.length);
-  const cat = data.categories[activeCategory] || (categoriesPresent[0] && data.categories[categoriesPresent[0]]);
-  const currentCategory = data.categories[activeCategory] ? activeCategory : categoriesPresent[0];
-
-  // Manual loadout overrides — keyed by weapon name → assetId
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
-  useEffect(() => { setOverrides(getLoadoutOverrides()); }, []);
-
-
-
-  // Compute the "loadout" — user overrides take priority, fall back to bestPerWeapon
-  const allItemsByAssetId = new Map<string, SkinItem>();
-  for (const cat of Object.values(data.categories)) {
-    for (const it of cat.items) allItemsByAssetId.set(it.assetId, it);
-  }
-  const effectiveLoadout: Record<string, SkinItem> = { ...(data.bestPerWeapon || {}) };
-  for (const [weapon, assetId] of Object.entries(overrides)) {
-    const overrideItem = allItemsByAssetId.get(assetId);
-    if (overrideItem) effectiveLoadout[weapon] = overrideItem;
-  }
-  const best = Object.values(effectiveLoadout).sort((a, b) =>
-    (b.price?.lowestPrice || 0) - (a.price?.lowestPrice || 0)
+  return (
+    <InventoryView
+      data={data}
+      priceSource={priceSource}
+      onPriceSourceChange={setPriceSource}
+    />
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// LOADING VIEW
+// ─────────────────────────────────────────────────────────────────────────
+function LoadingView() {
+  return (
+    <div className="flex h-48 items-center justify-center border border-cs-border bg-cs-panel clip-corner">
+      <div className="text-center">
+        <div className="mx-auto mb-3 h-8 w-8 animate-spin border-2 border-cs-orange border-t-transparent" />
+        <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FETCHING INVENTORY + PRICES</div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ERROR VIEW
+// ─────────────────────────────────────────────────────────────────────────
+function ErrorView({ message }: { message: string }) {
+  return (
+    <div className="border border-cs-border bg-cs-panel p-6 text-center clip-corner">
+      <div className="font-mono text-xs uppercase tracking-widest text-cs-red">// {message}</div>
+      {message.toLowerCase().includes("private") && (
+        <div className="mt-3">
+          <a
+            href="https://steamcommunity.com/my/edit/settings"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg"
+          >
+            Open Steam Privacy Settings ↗
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// INVENTORY VIEW — only mounted when `data` is non-null. All hooks here
+// can safely assume `data.categories` exists.
+// ─────────────────────────────────────────────────────────────────────────
+function InventoryView({
+  data,
+  priceSource,
+  onPriceSourceChange,
+}: {
+  data: InventoryResponse;
+  priceSource: PriceSource;
+  onPriceSourceChange: (s: PriceSource) => void;
+}) {
+  // ━━━ ALL HOOKS — TOP, UNCONDITIONAL ━━━
+  const [activeCategory, setActiveCategory] = useState<string>("Knife");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const { format: formatTotal } = useCurrency();
+
+  useEffect(() => { setOverrides(safeGetOverrides()); }, []);
+
+  // Memoize derived values so unnecessary re-renders don't recompute
+  const categoriesPresent = useMemo(
+    () => CATEGORY_ORDER.filter((c) => (data.categories[c]?.items?.length ?? 0) > 0),
+    [data]
+  );
+
+  // Determine which category to show
+  const currentCategory = data.categories[activeCategory]
+    ? activeCategory
+    : (categoriesPresent[0] || "Other");
+
+  const cat = data.categories[currentCategory];
+
+  // Compute the loadout (memoized for perf)
+  const best = useMemo(() => {
+    const allItemsByAssetId = new Map<string, SkinItem>();
+    for (const c of Object.values(data.categories)) {
+      for (const it of (c.items || [])) allItemsByAssetId.set(it.assetId, it);
+    }
+    const effectiveLoadout: Record<string, SkinItem> = { ...(data.bestPerWeapon || {}) };
+    for (const [weapon, assetId] of Object.entries(overrides)) {
+      const overrideItem = allItemsByAssetId.get(assetId);
+      if (overrideItem) effectiveLoadout[weapon] = overrideItem;
+    }
+    return Object.values(effectiveLoadout).sort(
+      (a, b) => (b.price?.lowestPrice || 0) - (a.price?.lowestPrice || 0)
+    );
+  }, [data, overrides]);
 
   const handleEquip = (item: SkinItem) => {
     const isCurrentlyEquipped = overrides[item.weapon] === item.assetId;
-    setLoadoutOverride(item.weapon, isCurrentlyEquipped ? null : item.assetId);
-    setOverrides(getLoadoutOverrides());
+    safeSetOverride(item.weapon, isCurrentlyEquipped ? null : item.assetId);
+    setOverrides(safeGetOverrides());
   };
 
   const sourceLabel = priceSource === "buff163" ? "BUFF163" : "Steam Market";
-  const { format: formatTotal } = useCurrency();
 
   return (
     <div className="space-y-5">
@@ -148,8 +206,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
           label="Items Loaded"
           value={
             data.totalInventoryCount && data.totalInventoryCount !== data.totalItems
-              ? `${data.totalItems?.toLocaleString()} / ${data.totalInventoryCount.toLocaleString()}`
-              : data.totalItems?.toLocaleString() || "0"
+              ? `${(data.totalItems ?? 0).toLocaleString()} / ${data.totalInventoryCount.toLocaleString()}`
+              : (data.totalItems ?? 0).toLocaleString()
           }
           accent={data.partial ? "text-cs-orange" : undefined}
         />
@@ -163,14 +221,13 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
           value={data.totalEstimatedValue ? formatTotal(data.totalEstimatedValue) : "—"}
           accent="text-emerald-400"
         />
-        {/* Price source toggle */}
         <div className="border border-cs-border bg-cs-panel p-3 clip-corner">
           <div className="mb-1 font-mono text-[10px] uppercase tracking-widest text-slate-500">Price source</div>
           <div className="flex">
-            <PriceSourceBtn active={priceSource === "buff163"} onClick={() => setPriceSource("buff163")}>
+            <PriceSourceBtn active={priceSource === "buff163"} onClick={() => onPriceSourceChange("buff163")}>
               BUFF163
             </PriceSourceBtn>
-            <PriceSourceBtn active={priceSource === "steam"} onClick={() => setPriceSource("steam")}>
+            <PriceSourceBtn active={priceSource === "steam"} onClick={() => onPriceSourceChange("steam")}>
               Steam
             </PriceSourceBtn>
           </div>
@@ -187,37 +244,28 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             Steam rate-limited the fetch before all pages could be retrieved.
             Wait ~60 seconds and refresh — the next attempt usually completes.
           </div>
-          <div className="mt-2 font-mono text-[11px] text-slate-500">
-            For full diagnostics, visit{" "}
-            <a href="/api/inventory?debug=1" target="_blank" rel="noopener noreferrer" className="text-cs-blue underline">
-              /api/inventory?debug=1
-            </a>
-          </div>
         </div>
       )}
 
       {/* Honest disclosure about prices */}
       <div className="border border-cs-blue/30 bg-cs-blue/5 p-3 font-mono text-[11px] text-slate-400 clip-corner">
         // Prices from <span className="text-cs-blue font-bold">{sourceLabel}</span>, cached server-side and refreshed every 30 minutes.
-        {priceSource === "buff163" && " BUFF163 prices are typically 10-30% lower than Steam Market (no Steam fee)."}
-        {priceSource === "steam" && " Steam Market prices include the 15% Valve fee."}
+        {priceSource === "buff163" ? " BUFF163 prices are typically 10-30% lower than Steam Market (no Steam fee)." : " Steam Market prices include the 15% Valve fee."}
       </div>
 
       {/* Best loadout per weapon */}
       {best.length > 0 && (
         <div className="border border-cs-border bg-cs-panel p-5 clip-corner">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// LOADOUT (BEST PER WEAPON)</div>
-              <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
-                Highest-value skin per slot · Valve doesn't expose true equipped loadout
-              </div>
+          <div className="mb-4">
+            <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// LOADOUT (BEST PER WEAPON)</div>
+            <div className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
+              Highest-value skin per slot · Valve doesn't expose true equipped loadout
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {best.slice(0, 12).map((item) => (
               <SkinCard
-                key={item.assetId}
+                key={`loadout-${item.assetId}`}
                 item={item}
                 compact
                 isEquipped={overrides[item.weapon] === item.assetId}
@@ -245,34 +293,45 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
             }`}
           >
             {CATEGORY_LABELS[c] || c}
-            <span className="ml-1.5 font-mono text-[10px] opacity-70">{data.categories[c].count}</span>
+            <span className="ml-1.5 font-mono text-[10px] opacity-70">{data.categories[c]?.count ?? 0}</span>
           </button>
         ))}
       </div>
 
       {/* Category contents */}
-      {cat && (
-        <>
-          {data.categories[currentCategory]?.totalValue !== undefined && data.categories[currentCategory].totalValue > 0 && (
-            <div className="font-mono text-xs uppercase tracking-widest text-slate-500">
-              Category total: <span className="text-emerald-400">${data.categories[currentCategory].totalValue.toFixed(2)}</span>
+      {cat && cat.items && cat.items.length > 0 ? (
+        <div>
+          {(cat.totalValue ?? 0) > 0 && (
+            <div className="mb-3 font-mono text-xs uppercase tracking-widest text-slate-500">
+              Category total: <span className="text-emerald-400">{formatTotal(cat.totalValue)}</span>
             </div>
           )}
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {cat.items.map((item) => (
-              <SkinCard
-                key={item.assetId}
-                item={item}
-                isEquipped={overrides[item.weapon] === item.assetId}
-                onEquip={["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(item.category) ? () => handleEquip(item) : undefined}
-              />
-            ))}
+            {cat.items.map((item) => {
+              const canEquip = ["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(item.category);
+              return (
+                <SkinCard
+                  key={`cat-${currentCategory}-${item.assetId}`}
+                  item={item}
+                  isEquipped={overrides[item.weapon] === item.assetId}
+                  onEquip={canEquip ? () => handleEquip(item) : undefined}
+                />
+              );
+            })}
           </div>
-        </>
+        </div>
+      ) : (
+        <div className="border border-cs-border bg-cs-panel p-4 text-center font-mono text-xs text-slate-500 clip-corner">
+          // No items in this category
+        </div>
       )}
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// PRESENTATIONAL COMPONENTS — no state, no early returns, only useCurrency
+// ─────────────────────────────────────────────────────────────────────────
 
 function SummaryCard({ label, value, accent }: { label: string; value: number | string; accent?: boolean | string }) {
   const cls = accent === true ? "text-cs-orange" : typeof accent === "string" ? accent : "text-white";
@@ -303,9 +362,13 @@ function SkinCard({ item, compact, isEquipped, onEquip }: {
   isEquipped?: boolean;
   onEquip?: () => void;
 }) {
+  // useCurrency is the only hook here. Always called. Never conditional.
   const { format } = useCurrency();
-  const formatPrice = (n: number | null | undefined) => format(n);
   const rarityHex = item.rarityColor || "#94a3b8";
+  const priceText = item.price?.lowestPrice != null
+    ? format(item.price.lowestPrice)
+    : null;
+
   return (
     <a
       href={`https://steamcommunity.com/market/listings/730/${encodeURIComponent(item.marketHashName)}`}
@@ -348,7 +411,7 @@ function SkinCard({ item, compact, isEquipped, onEquip }: {
         {item.iconUrl ? (
           <img
             src={item.iconUrlLarge || item.iconUrl}
-            alt={item.name}
+            alt={item.name || ""}
             className="max-h-full max-w-full object-contain transition group-hover:scale-110"
             loading="lazy"
           />
@@ -359,7 +422,7 @@ function SkinCard({ item, compact, isEquipped, onEquip }: {
       </div>
 
       <div className="p-3">
-        <div className="truncate font-display text-sm font-bold uppercase tracking-tight text-white">{item.weapon}</div>
+        <div className="truncate font-display text-sm font-bold uppercase tracking-tight text-white">{item.weapon || "—"}</div>
         <div className="truncate font-mono text-[11px] text-slate-400">{item.skin || "—"}</div>
 
         <div className="mt-2 flex items-end justify-between gap-2">
@@ -372,15 +435,8 @@ function SkinCard({ item, compact, isEquipped, onEquip }: {
             )}
           </div>
           <div className="text-right">
-            {item.price?.lowestPrice ? (
-              <>
-                <div className="font-display text-base font-bold text-emerald-400">
-                  {formatPrice(item.price.lowestPrice)}
-                </div>
-                {item.price.source && (
-                  <div className="font-mono text-[9px] text-slate-500">{item.price.source}</div>
-                )}
-              </>
+            {priceText ? (
+              <div className="font-display text-base font-bold text-emerald-400">{priceText}</div>
             ) : (
               <div className="font-mono text-[10px] uppercase text-slate-600">no price</div>
             )}
@@ -401,7 +457,9 @@ function abbreviateWear(w: string): string {
   } as Record<string, string>)[w] || w;
 }
 
-// --- Demo inventory generator ---
+// ─────────────────────────────────────────────────────────────────────────
+// DEMO INVENTORY — used when `isDemo === true`
+// ─────────────────────────────────────────────────────────────────────────
 function generateDemoInventory(): InventoryResponse {
   const items: SkinItem[] = [
     mkItem("★ Karambit | Doppler", "Knife", "Karambit", "Doppler", "Factory New", "#8650AC", "★ Covert", true, false, "$1,247.83", 1247.83),
