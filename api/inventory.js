@@ -41,7 +41,12 @@ const COMMON_HEADERS = {
 //   - 429 (rate limit): retry up to 2x with exponential backoff
 //   - 200 with empty `assets` despite total_inventory_count > 0:
 //     Steam sometimes ships a degraded response. Retry once.
-async function fetchOnePage(steamId, startAssetId, count = 5000) {
+//
+// IMPORTANT: `count` is capped at 2000 in practice. Steam's docs say 5000 is
+// the max, but since late 2022 the actual server-side limit is 2000 — anything
+// larger returns HTTP 400. Using 2000 is the well-known safe value (used by
+// node-steamcommunity, steam-inventory-api, and most third-party libs).
+async function fetchOnePage(steamId, startAssetId, count = 2000) {
   const params = new URLSearchParams({ l: "english", count: String(count) });
   if (startAssetId) params.set("start_assetid", startAssetId);
 
@@ -381,7 +386,7 @@ export default async function handler(req, res) {
 
   // ── FULL MODE (legacy: server paginates with time budget) ────────────
   // Used as fallback or for scripts that prefer a single response.
-  const PER_PAGE = 5000;
+  const PER_PAGE = 2000; // Steam server-side cap; >2000 returns HTTP 400
   const MAX_PAGES = 12;
   const TIME_BUDGET_MS = 50_000; // leave headroom under the 60s function limit
   const startTs = Date.now();
