@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import type { InventoryResponse, SkinItem } from "../lib/skinsTypes";
 import { useCurrency } from "../lib/currency";
 
@@ -57,38 +57,171 @@ type PriceSource = "buff163" | "steam";
 // SHELL — handles fetching and decides which sub-view to render.
 // All hooks live here. No conditional hooks.
 // ─────────────────────────────────────────────────────────────────────────
+// Reshape: aggregates `items[]` from many single-page responses into the
+// InventoryResponse shape that InventoryView expects.
+const RARITY_RANK: Record<string, number> = {
+  "Contraband": 8, "Covert": 7, "Classified": 6, "Restricted": 5,
+  "Mil-Spec Grade": 4, "Industrial Grade": 3, "Consumer Grade": 2,
+  "Extraordinary": 9, "★": 10,
+};
+function aggregateInto(items: SkinItem[], totalInventoryCount: number | null, partial: boolean, priceSource: string): InventoryResponse {
+  const categories: Record<string, { items: SkinItem[]; totalValue: number; count: number }> = {};
+  let totalEstimatedValue = 0;
+  for (const it of items) {
+    if (!categories[it.category]) categories[it.category] = { items: [], totalValue: 0, count: 0 };
+    categories[it.category].items.push(it);
+    categories[it.category].count++;
+    if (it.price?.lowestPrice) {
+      categories[it.category].totalValue += it.price.lowestPrice;
+      totalEstimatedValue += it.price.lowestPrice;
+    }
+  }
+  for (const cat of Object.keys(categories)) {
+    categories[cat].items.sort((a, b) => {
+      const pa = a.price?.lowestPrice || 0;
+      const pb = b.price?.lowestPrice || 0;
+      if (pb !== pa) return pb - pa;
+      return (RARITY_RANK[b.rarity || ""] || 0) - (RARITY_RANK[a.rarity || ""] || 0);
+    });
+    categories[cat].totalValue = +categories[cat].totalValue.toFixed(2);
+  }
+
+  const bestPerWeapon: Record<string, SkinItem> = {};
+  for (const it of items) {
+    if (!["Rifle","Sniper","Pistol","SMG","Heavy","Knife","Gloves"].includes(it.category)) continue;
+    const score = (x: SkinItem) => (x.price?.lowestPrice || 0) + (RARITY_RANK[x.rarity || ""] || 0) * 0.5;
+    if (!bestPerWeapon[it.weapon] || score(it) > score(bestPerWeapon[it.weapon])) {
+      bestPerWeapon[it.weapon] = it;
+    }
+  }
+
+  return {
+    totalItems: items.length,
+    totalInventoryCount,
+    totalEstimatedValue: +totalEstimatedValue.toFixed(2),
+    pricedCount: items.filter((i) => i.price).length,
+    pricesIncluded: true,
+    priceSource,
+    currency: 1,
+    partial,
+    categories,
+    bestPerWeapon,
+  };
+}
+
 export function SkinsSection({ isDemo }: { isDemo: boolean }) {
   const [data, setData] = useState<InventoryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);   // initial load (no data yet)
+  const [loadingMore, setLoadingMore] = useState(false); // background pagination
+  const [progress, setProgress] = useState<{ loaded: number; total: number | null }>({ loaded: 0, total: null });
   const [error, setError] = useState<string | null>(null);
   const [priceSource, setPriceSource] = useState<PriceSource>("buff163");
+
+  // Single shared abort controller so we can cancel pagination when source changes
+  const abortRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const load = useCallback(async (source: PriceSource) => {
     if (isDemo) {
       setData(generateDemoInventory());
       setLoading(false);
+      setLoadingMore(false);
+      setProgress({ loaded: 0, total: null });
       return;
     }
+    // Cancel any in-flight pagination from a previous load
+    abortRef.current.cancelled = true;
+    const myToken = { cancelled: false };
+    abortRef.current = myToken;
+
     setLoading(true);
+    setLoadingMore(false);
     setError(null);
+    setData(null);
+    setProgress({ loaded: 0, total: null });
+
+    const allItems: SkinItem[] = [];
+    const seenAssetIds = new Set<string>();
+    let cursor: string | null = null;
+    let totalInv: number | null = null;
+    let pagesFetched = 0;
+    const MAX_PAGES = 30;
+
     try {
-      const r = await fetch(`/api/inventory?source=${source}`, { credentials: "include" });
-      if (!r.ok) {
-        setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
-        setData(null);
-        return;
+      do {
+        const url = `/api/inventory?source=${source}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+        const r = await fetch(url, { credentials: "include" });
+        if (myToken.cancelled) return;
+
+        if (!r.ok) {
+          setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
+          break;
+        }
+        const j: {
+          items?: SkinItem[];
+          totalInventoryCount?: number | null;
+          more?: boolean;
+          nextCursor?: string | null;
+          error?: string;
+          message?: string;
+        } = await r.json();
+        if (myToken.cancelled) return;
+
+        if (j.error) {
+          setError(j.message || j.error);
+          break;
+        }
+        if (j.totalInventoryCount != null) totalInv = j.totalInventoryCount;
+        for (const it of (j.items || [])) {
+          if (seenAssetIds.has(it.assetId)) continue;
+          seenAssetIds.add(it.assetId);
+          allItems.push(it);
+        }
+        pagesFetched++;
+        // Update display progressively after each page
+        setData(aggregateInto(allItems, totalInv, j.more === true, source));
+        setProgress({ loaded: allItems.length, total: totalInv });
+        // First page → flip from "loading" to "loaded but loadingMore"
+        if (loading) setLoading(false);
+        if (j.more && j.nextCursor) {
+          setLoadingMore(true);
+          cursor = j.nextCursor;
+          // Brief delay between pages to be polite
+          await new Promise((r) => setTimeout(r, 400));
+        } else {
+          cursor = null;
+        }
+      } while (cursor && pagesFetched < MAX_PAGES);
+      if (myToken.cancelled) return;
+      // Final settle: mark partial=false now that the loop ended cleanly
+      if (allItems.length > 0) {
+        setData(aggregateInto(allItems, totalInv, false, source));
+      } else if (!error) {
+        setError("No CS2 inventory items found.");
       }
-      const j: InventoryResponse = await r.json();
-      if (j.error) setError(j.message || j.error);
-      setData(j);
-    } catch {
-      setError("Failed to load inventory");
+    } catch (e) {
+      if (myToken.cancelled) return;
+      if (allItems.length === 0) {
+        setError("Failed to load inventory: " + String(e));
+      }
+      // Otherwise keep what we have, mark partial
+      if (allItems.length > 0) {
+        setData(aggregateInto(allItems, totalInv, true, source));
+      }
     } finally {
-      setLoading(false);
+      if (!myToken.cancelled) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo]);
 
   useEffect(() => { load(priceSource); }, [load, priceSource]);
+
+  // Cleanup: cancel any pagination on unmount
+  useEffect(() => {
+    return () => { abortRef.current.cancelled = true; };
+  }, []);
 
   // Defensively pick a sub-view. None of these branches use hooks.
   if (loading && !data) return <LoadingView />;
@@ -100,6 +233,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       data={data}
       priceSource={priceSource}
       onPriceSourceChange={setPriceSource}
+      loadingMore={loadingMore}
+      progress={progress}
     />
   );
 }
@@ -149,10 +284,14 @@ function InventoryView({
   data,
   priceSource,
   onPriceSourceChange,
+  loadingMore,
+  progress,
 }: {
   data: InventoryResponse;
   priceSource: PriceSource;
   onPriceSourceChange: (s: PriceSource) => void;
+  loadingMore?: boolean;
+  progress?: { loaded: number; total: number | null };
 }) {
   // ━━━ ALL HOOKS — TOP, UNCONDITIONAL ━━━
   const [activeCategory, setActiveCategory] = useState<string>("Knife");
@@ -234,8 +373,23 @@ function InventoryView({
         </div>
       </div>
 
-      {/* Partial-inventory warning */}
-      {data.partial && (
+      {/* Background pagination indicator (active while streaming pages from Steam) */}
+      {loadingMore && (
+        <div className="flex items-center gap-3 border border-cs-orange/40 bg-cs-orange/10 p-3 clip-corner">
+          <div className="h-4 w-4 flex-shrink-0 animate-spin border-2 border-cs-orange border-t-transparent rounded-full" />
+          <div className="flex-1 text-sm">
+            <div className="font-display font-bold uppercase tracking-wider text-cs-orange">
+              Loading more items… ({progress?.loaded ?? 0}{progress?.total ? ` / ${progress.total}` : ""})
+            </div>
+            <div className="font-mono text-[11px] text-slate-400">
+              Steam serves inventories in pages — fetching the rest in the background. Items appear progressively.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final partial-inventory warning (only when streaming finished without all items) */}
+      {data.partial && !loadingMore && (
         <div className="border border-cs-orange/40 bg-cs-orange/10 p-3 text-sm clip-corner">
           <div className="font-display font-bold uppercase tracking-wider text-cs-orange">
             ⚠ Partial inventory ({data.totalItems} of {data.totalInventoryCount} items loaded)
@@ -252,6 +406,32 @@ function InventoryView({
         // Prices from <span className="text-cs-blue font-bold">{sourceLabel}</span>, cached server-side and refreshed every 30 minutes.
         {priceSource === "buff163" ? " BUFF163 prices are typically 10-30% lower than Steam Market (no Steam fee)." : " Steam Market prices include the 15% Valve fee."}
       </div>
+
+      {/* Per-category breakdown — helps diagnose "missing items" issues by
+          showing exactly how many items landed in each category. Should
+          sum to data.totalItems. If it does and items are still "missing",
+          the issue is mis-categorization (item is somewhere unexpected). */}
+      <details className="border border-cs-border bg-cs-panel p-3 clip-corner">
+        <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-widest text-slate-500 hover:text-cs-orange">
+          // CATEGORY BREAKDOWN ({data.totalItems} total items in {categoriesPresent.length} categories) — click to expand
+        </summary>
+        <div className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
+          {Object.entries(data.categories).sort((a, b) => b[1].count - a[1].count).map(([cat, info]) => (
+            <div key={cat} className="flex items-center justify-between border border-cs-border/50 bg-cs-bg/50 px-2 py-1 font-mono text-[11px]">
+              <span className="text-slate-400">{cat}</span>
+              <span className="font-bold text-cs-orange">{info.count}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 font-mono text-[10px] text-slate-600">
+          Sum: {Object.values(data.categories).reduce((s, c) => s + c.count, 0)} ·
+          Expected: {data.totalInventoryCount ?? "?"} ·
+          Loaded: {data.totalItems}
+          {data.totalInventoryCount && (data.totalItems ?? 0) < data.totalInventoryCount && (
+            <span className="ml-2 text-cs-red">⚠ {data.totalInventoryCount - (data.totalItems ?? 0)} items unaccounted for</span>
+          )}
+        </div>
+      </details>
 
       {/* Best loadout per weapon */}
       {best.length > 0 && (
