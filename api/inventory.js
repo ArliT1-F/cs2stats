@@ -222,46 +222,62 @@ function toSkinItem(a, desc) {
 
 function buildItems(rawAssets, rawDescriptions) {
   // Steam's `descriptions` array deduplicates by classid+instanceid.
-  // BUT in practice some descriptions only have a `classid` and instanceid="0",
-  // while assets may carry a different real instanceid (e.g. for unique items
-  // with float values). If the strict classid_instanceid match fails, we
-  // fall back to a classid-only lookup so no items are silently dropped.
+  // 3-tier matching strategy ensures no asset is ever silently dropped:
+  //   1. Exact match on classid+instanceid (works for ~95% of items)
+  //   2. Class-only match (catches items with unique paint seeds where
+  //      asset.instanceid doesn't appear in descriptions array)
+  //   3. Synthetic placeholder (for the rare case where Steam serves an
+  //      asset whose classid isn't in the descriptions array at all)
   const descByPair = {};
   const descByClass = {};
   for (const d of rawDescriptions) {
     descByPair[`${d.classid}_${d.instanceid}`] = d;
-    // First-seen wins for class-only fallback (descriptions are usually
-    // listed in a stable order by Steam)
     if (!(d.classid in descByClass)) descByClass[d.classid] = d;
   }
 
   const items = [];
-  const droppedAssets = [];
+  const orphanedAssets = [];
   let matchedExact = 0;
   let matchedByClass = 0;
+  let synthesized = 0;
 
   for (const a of rawAssets) {
     let desc = descByPair[`${a.classid}_${a.instanceid}`];
     if (desc) {
       matchedExact++;
     } else {
-      // Fallback: just match by classid (instanceid mismatch is common for
-      // weapon skins with unique paint seeds / float values)
       desc = descByClass[a.classid];
       if (desc) matchedByClass++;
     }
     if (!desc) {
-      droppedAssets.push({
+      // Asset has no matching description in this response at all. Rather
+      // than silently dropping it, synthesize a minimal placeholder so the
+      // user at least sees that something is in their inventory.
+      synthesized++;
+      orphanedAssets.push({
         assetid: a.assetid,
         classid: a.classid,
         instanceid: a.instanceid,
       });
-      continue;
+      desc = {
+        classid: a.classid,
+        instanceid: a.instanceid,
+        name: `Unknown Item (classid ${a.classid})`,
+        market_hash_name: `Unknown Item ${a.classid}`,
+        type: "Unknown",
+        tradable: 0,
+        marketable: 0,
+        tags: [],
+        name_color: "94a3b8",
+      };
     }
     items.push(toSkinItem(a, desc));
   }
 
-  return { items, diagnostics: { matchedExact, matchedByClass, droppedAssets } };
+  return {
+    items,
+    diagnostics: { matchedExact, matchedByClass, synthesized, orphanedAssets },
+  };
 }
 
 const RARITY_RANK = {
