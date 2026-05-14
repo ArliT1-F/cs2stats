@@ -37,9 +37,11 @@ const COMMON_HEADERS = {
 };
 
 // --- Single Steam page fetch ---------------------------------------------
+// Includes automatic retry-with-backoff for soft Steam failures:
+//   - 429 (rate limit): retry up to 2x with exponential backoff
+//   - 200 with empty `assets` despite total_inventory_count > 0:
+//     Steam sometimes ships a degraded response. Retry once.
 async function fetchOnePage(steamId, startAssetId, count = 5000) {
-  // count=5000 is Steam's documented max. Sometimes it returns fewer per page
-  // anyway, but never more.
   const params = new URLSearchParams({ l: "english", count: String(count) });
   if (startAssetId) params.set("start_assetid", startAssetId);
 
@@ -49,15 +51,50 @@ async function fetchOnePage(steamId, startAssetId, count = 5000) {
     Referer: `https://steamcommunity.com/profiles/${steamId}/inventory/`,
   };
 
-  const r = await fetch(url, { headers });
-  if (r.status === 403) return { error: "private_inventory", status: 403 };
-  if (r.status === 429) return { error: "rate_limited", status: 429 };
-  if (!r.ok) return { error: `http_${r.status}`, status: r.status };
-  let j;
-  try { j = await r.json(); }
-  catch (e) { return { error: "parse_error", detail: String(e) }; }
-  if (!j || j.success === false) return { error: "steam_failure" };
-  return { data: j };
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff: 2s, 4s
+      await new Promise((res) => setTimeout(res, 2000 * attempt));
+    }
+
+    let r;
+    try { r = await fetch(url, { headers }); }
+    catch (e) { lastError = { error: "fetch_error", detail: String(e) }; continue; }
+
+    if (r.status === 403) return { error: "private_inventory", status: 403 };
+    if (r.status === 429) {
+      lastError = { error: "rate_limited", status: 429 };
+      continue; // retry with backoff
+    }
+    if (!r.ok) {
+      lastError = { error: `http_${r.status}`, status: r.status };
+      // Retry on 5xx; give up on other 4xx
+      if (r.status >= 500) continue;
+      return lastError;
+    }
+
+    let j;
+    try { j = await r.json(); }
+    catch (e) { lastError = { error: "parse_error", detail: String(e) }; continue; }
+
+    if (!j || j.success === false) {
+      lastError = { error: "steam_failure" };
+      continue;
+    }
+
+    // Sanity check: if Steam claims items exist but didn't ship any, retry.
+    // This is the "degraded empty response" we've observed when soft-rate-limited.
+    const assetCount = Array.isArray(j.assets) ? j.assets.length : 0;
+    if (assetCount === 0 && typeof j.total_inventory_count === "number" && j.total_inventory_count > 0 && !startAssetId) {
+      lastError = { error: "degraded_response", totalInventoryCount: j.total_inventory_count };
+      continue; // retry — Steam should give us the real data on the next attempt
+    }
+
+    return { data: j, attempt };
+  }
+
+  return lastError || { error: "unknown_failure" };
 }
 
 // --- Item categorization ------------------------------------------------

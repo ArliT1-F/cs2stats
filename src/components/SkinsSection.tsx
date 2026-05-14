@@ -196,7 +196,19 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       if (allItems.length > 0) {
         setData(aggregateInto(allItems, totalInv, false, source));
       } else if (!error) {
-        setError("No CS2 inventory items found.");
+        // Distinguish "truly empty inventory" from "Steam returned a degraded
+        // empty response" (the latter is almost always a soft rate limit).
+        // Total >0 but items 0 = Steam knows the inventory has items but
+        // didn't ship them in this response → retry will likely succeed.
+        if (totalInv && totalInv > 0) {
+          setError(
+            `Steam returned an empty response despite this account having ${totalInv} items. ` +
+            `This usually means Steam is soft-rate-limiting our IP. ` +
+            `Wait 30-60 seconds and click "Retry" below.`
+          );
+        } else {
+          setError("No CS2 inventory items found for this account.");
+        }
       }
     } catch (e) {
       if (myToken.cancelled) return;
@@ -225,7 +237,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
 
   // Defensively pick a sub-view. None of these branches use hooks.
   if (loading && !data) return <LoadingView />;
-  if (error && !data?.categories) return <ErrorView message={error} />;
+  if (error && !data?.categories) return <ErrorView message={error} onRetry={() => load(priceSource)} />;
   if (!data || !data.categories) return null;
 
   return (
@@ -256,22 +268,38 @@ function LoadingView() {
 // ─────────────────────────────────────────────────────────────────────────
 // ERROR VIEW
 // ─────────────────────────────────────────────────────────────────────────
-function ErrorView({ message }: { message: string }) {
+function ErrorView({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="border border-cs-border bg-cs-panel p-6 text-center clip-corner">
       <div className="font-mono text-xs uppercase tracking-widest text-cs-red">// {message}</div>
-      {message.toLowerCase().includes("private") && (
-        <div className="mt-3">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            className="bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg hover:brightness-110"
+          >
+            ↻ Retry
+          </button>
+        )}
+        {message.toLowerCase().includes("private") && (
           <a
             href="https://steamcommunity.com/my/edit/settings"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block bg-cs-orange px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-bg"
+            className="inline-block border border-cs-orange/60 px-4 py-2 font-display text-sm font-bold uppercase tracking-wider text-cs-orange"
           >
             Open Steam Privacy Settings ↗
           </a>
-        </div>
-      )}
+        )}
+        <a
+          href="/api/inventory?debug=1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-xs text-cs-blue hover:underline"
+        >
+          /api/inventory?debug=1 ↗
+        </a>
+      </div>
     </div>
   );
 }
