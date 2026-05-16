@@ -21,6 +21,7 @@ export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }
 
   const wins = matches.filter((m) => m.won).length;
   const losses = matches.filter((m) => m.won === false).length;
+  const decidedMatches = wins + losses;
 
   return (
     <div className="space-y-3">
@@ -52,7 +53,7 @@ export function MatchHistory({ matches }: { matches: FaceitMatch[] | undefined }
           <span className="text-emerald-400">{wins}W</span>
           <span className="text-cs-red">{losses}L</span>
           <span className="text-slate-500">
-            {matches.length > 0 ? ((wins / matches.length) * 100).toFixed(0) : 0}% win rate
+            {decidedMatches > 0 ? ((wins / decidedMatches) * 100).toFixed(0) : 0}% win rate
           </span>
         </div>
       </div>
