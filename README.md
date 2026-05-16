@@ -47,6 +47,8 @@ Pulled from the FACEIT Open Data API. Kept strictly separate from Steam stats �
 - **Player search** — search any Steam vanity URL, SteamID64, profile URL, or FACEIT nickname from the header. Results show avatar, country, FACEIT level, and ELO; click any result to view that profile.
 - **Public shareable profiles** — every profile lives at `/u/{steamid}`. Click the "Share" button on the profile banner to copy the link. Anyone (logged in or not) can view stats — inventory & live status remain private to the owner. Server-side cached for 5 minutes.
 
+- **AdSense placeholders** — reserved banner locations on the landing page and dashboard for a future Google AdSense integration. No ad script is loaded yet.
+
 ---
 
 ## Limitations (honest disclosures)
