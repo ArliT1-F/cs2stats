@@ -49,7 +49,7 @@ export function Landing({ onLogin, onDemo }: { onLogin: () => void; onDemo: () =
         </div>
       </section>
 
-      {/* Advertisement */}
+      {/* Future AdSense placeholder */}
       <section className="border-t border-cs-border bg-cs-bg py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <AdvertisementBanner placement="landing" />

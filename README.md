@@ -46,7 +46,7 @@ Pulled from the FACEIT Open Data API. Kept strictly separate from Steam stats �
 - **Live status banner** — when you're currently in a CS2 match, a pulsing green banner appears at the top of your dashboard showing "LIVE NOW" with the server you're on. Polls every 30 seconds.
 - **Player search** — search any Steam vanity URL, SteamID64, profile URL, or FACEIT nickname from the header. Results show avatar, country, FACEIT level, and ELO; click any result to view that profile.
 - **Public shareable profiles** — every profile lives at `/u/{steamid}`. Click the "Share" button on the profile banner to copy the link. Anyone (logged in or not) can view stats — inventory & live status remain private to the owner. Server-side cached for 5 minutes.
-- **Advertisement banners** — first-party static sponsor slots on the landing page and dashboard. They are rendered by the app itself with no third-party scripts.
+- **AdSense placeholders** — reserved banner locations on the landing page and dashboard for a future Google AdSense integration. No ad script is loaded yet.
 
 ---
 
@@ -101,7 +101,7 @@ When Valve rotates the pool, only those two files need to be updated; the rest o
 - API keys (`STEAM_API_KEY`, `FACEIT_API_KEY`) live exclusively in server environment variables; they are never sent to the browser.
 - Public profiles (`/u/{steamid}`) are read-only views of public Steam data — no inventory, no live status, no auth bypass.
 - Manual loadout overrides are stored in your browser's localStorage; nothing is sent to the server.
-- No third-party analytics or tracking scripts. Advertisement banners are static first-party placements.
+- No analytics, trackers, or ad scripts are loaded. Current banner blocks are inert placeholders for future AdSense setup.
 
 ---
 
