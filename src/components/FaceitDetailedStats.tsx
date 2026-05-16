@@ -669,12 +669,17 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
   const winRate = num(lifetime["Win Rate %"]) ?? (totalMatches ? (wins / totalMatches) * 100 : 0);
 
   // Aggregates from recent matches (since FACEIT lifetime doesn't expose all of these)
-  const totalRounds = matches.reduce((s, m) => s + (m.totalRounds || 0), 0);
+  const recentRounds = getOwnRoundTotals(matches);
+  const totalRounds = recentRounds.total;
   const totalDamage = matches.reduce((s, m) => s + (m.damage || (m.adr && m.totalRounds ? m.adr * m.totalRounds : 0)), 0);
-  const totalKills = num(lifetime["Total Kills with extended stats"]) ?? sumStat(matches, "kills");
+  const recentKills = sumStat(matches, "kills");
+  const totalKills = num(lifetime["Total Kills with extended stats"]) ?? recentKills;
   const totalDeaths = sumStat(matches, "deaths");
   const totalAssists = sumStat(matches, "assists");
-  const totalHeadshots = sumStat(matches, "headshots") || sumStat(matches, "kills") * (r.avgHS / 100);
+  const totalHeadshots = sumStat(matches, "headshots") || recentKills * (r.avgHS / 100);
+  const lifetimeKR = num(lifetime["K/R Ratio"]) ?? num(lifetime["Average K/R Ratio"]);
+  const lifetimeKD = num(lifetime["Average K/D Ratio"]) ?? num(lifetime["K/D Ratio"]);
+  const headshotPct = num(lifetime["Average Headshots %"]) ?? r.avgHS;
 
   return (
     <div>
@@ -690,9 +695,9 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
             <Row label="Current win streak" value={lifetime["Current Win Streak"]} />
           </Group>
 
-          <Group title="Rounds" big={totalRounds.toLocaleString()}>
-            <Row label="Rounds won" value={Math.round(totalRounds * (winRate / 100)).toLocaleString()} />
-            <Row label="Rounds win rate" value={`${winRate.toFixed(0)}%`} />
+          <Group title="Recent rounds" big={totalRounds ? totalRounds.toLocaleString() : "—"}>
+            <Row label="Rounds won" value={totalRounds ? recentRounds.won.toLocaleString() : "—"} />
+            <Row label="Rounds win rate" value={totalRounds ? `${((recentRounds.won / totalRounds) * 100).toFixed(0)}%` : "—"} />
             <Row label="Total damage" value={Math.round(totalDamage).toLocaleString()} />
             <Row label="ADR" value={r.avgADR ? r.avgADR.toFixed(1) : (lifetime["ADR"] || "—")} />
           </Group>
@@ -700,10 +705,10 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
           <Group title="Kills" big={totalKills.toLocaleString()}>
             <Row label="Deaths" value={totalDeaths.toLocaleString()} />
             <Row label="Assists" value={totalAssists.toLocaleString()} />
-            <Row label="K/R" value={(totalRounds > 0 ? totalKills / totalRounds : 0).toFixed(2)} />
-            <Row label="K/D" value={(totalDeaths > 0 ? totalKills / totalDeaths : 0).toFixed(2)} />
+            <Row label="K/R" value={lifetimeKR !== null ? lifetimeKR.toFixed(2) : totalRounds > 0 ? (recentKills / totalRounds).toFixed(2) : "—"} />
+            <Row label="K/D" value={lifetimeKD !== null ? lifetimeKD.toFixed(2) : totalDeaths > 0 ? (recentKills / totalDeaths).toFixed(2) : "—"} />
             <Row label="Headshots" value={Math.round(totalHeadshots).toLocaleString()} />
-            <Row label="Headshot %" value={`${r.avgHS.toFixed(0)}%`} />
+            <Row label="Headshot %" value={`${headshotPct.toFixed(0)}%`} />
           </Group>
 
           <Group title="Entry Success" big={`${r.entrySuccess.toFixed(0)}%`}>
@@ -842,6 +847,26 @@ function aggregateMatches(matches: FaceitMatch[]) {
 
 function sumStat(matches: FaceitMatch[], key: keyof FaceitMatch): number {
   return matches.reduce((s, m) => s + (Number(m[key]) || 0), 0);
+}
+function getOwnRoundTotals(matches: FaceitMatch[]): { total: number; won: number } {
+  return matches.reduce(
+    (acc, match) => {
+      const ownTeam = match.teams.find((team) => team.players.some((player) => player.isMe));
+      if (ownTeam?.score !== null && ownTeam?.score !== undefined && match.totalRounds) {
+        acc.total += match.totalRounds;
+        acc.won += ownTeam.score;
+        return acc;
+      }
+
+      const scores = match.score.match(/\d+/g)?.map(Number) || [];
+      if (scores.length >= 2 && match.won !== null) {
+        acc.total += scores[0] + scores[1];
+        acc.won += match.won ? Math.max(scores[0], scores[1]) : Math.min(scores[0], scores[1]);
+      }
+      return acc;
+    },
+    { total: 0, won: 0 }
+  );
 }
 function num(v: string | number | undefined | null): number | null {
   if (v === undefined || v === null || v === "") return null;

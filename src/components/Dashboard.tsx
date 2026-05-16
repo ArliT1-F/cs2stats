@@ -11,6 +11,7 @@ import { DemosSection } from "./DemosSection";
 import { ProfileBanner } from "./ProfileBanner";
 import { SourceBadge } from "./SourceBadge";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { AdvertisementBanner } from "./AdvertisementBanner";
 
 export function Dashboard({
   profile,
@@ -53,6 +54,10 @@ export function Dashboard({
       <ErrorBoundary label="ProfileBanner">
         <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
       </ErrorBoundary>
+
+      <div className="mt-6">
+        <AdvertisementBanner placement="dashboard" />
+      </div>
 
       {/* ─── STEAM (Lifetime: Premier + Casual + Deathmatch combined) ─── */}
       <SourceDivider source="steam" label="Steam Lifetime Data" note="Includes Premier, Competitive, Casual & Deathmatch · Steam does not separate by mode" />
@@ -125,6 +130,10 @@ export function Dashboard({
           <DemosSection matches={faceit?.matches} />
         </ErrorBoundary>
       </section>
+
+      <div className="mt-12">
+        <AdvertisementBanner placement="section" compact />
+      </div>
 
       <footer className="mt-16 border-t border-cs-border pt-6 text-center">
         <p className="font-mono text-xs text-slate-600">

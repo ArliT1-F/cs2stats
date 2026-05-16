@@ -1,3 +1,5 @@
+import { AdvertisementBanner } from "./AdvertisementBanner";
+
 export function Landing({ onLogin, onDemo }: { onLogin: () => void; onDemo: () => void }) {
   return (
     <div className="relative overflow-hidden">
@@ -44,6 +46,13 @@ export function Landing({ onLogin, onDemo }: { onLogin: () => void; onDemo: () =
               No password required · Steam OpenID 2.0 · We never see your credentials
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* Advertisement */}
+      <section className="border-t border-cs-border bg-cs-bg py-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <AdvertisementBanner placement="landing" />
         </div>
       </section>
 
