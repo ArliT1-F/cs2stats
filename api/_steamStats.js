@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-import { SUPPORTED_MAPS } from './_mapPool.js';
-
-// Shared Steam lifetime-stat transform used by authenticated and public
-//profile endpoints. Keeping the weapon/map logic in one place prevents the
-// two API responses from drifting.
-
-export const STEAM_WEAPONS = [
-     ["ak47", "AK-47"],
-=======
 // Shared Steam CS2 stats transformation — single source of truth for
 // /api/me, /api/me-basic, and /api/profile/[steamid].
 
@@ -21,7 +11,6 @@ import { SUPPORTED_MAPS } from "./_mapPool.js";
  */
 export const WEAPON_DEFINITIONS = [
   ["ak47", "AK-47"],
->>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)
   ["m4a1", "M4A4"],
   ["m4a1_silencer", "M4A1-S"],
   ["awp", "AWP"],
@@ -59,16 +48,6 @@ export const WEAPON_DEFINITIONS = [
   ["taser", "Zeus x27"],
   ["hegrenade", "HE Grenade"],
   ["molotov", "Molotov"],
-<<<<<<< HEAD
-];
-
-export function transformSteamStats(rawStats) {
-    if (!rawStats) return null;
-    const map = {};
-    for (const s of rawStats) map[s.name] = s.value;
-
-    const totalKills = map.total_kills || 0;
-=======
   ["flashbang", "Flashbang"],
   ["smokegrenade", "Smoke"],
   ["incgrenade", "Incendiary"],
@@ -193,7 +172,6 @@ export function transformSteamStats(rawStats) {
   for (const s of rawStats) map[s.name] = s.value;
 
   const totalKills = map.total_kills || 0;
->>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)
   const totalDeaths = map.total_deaths || 0;
   const totalShots = map.total_shots_fired || 0;
   const totalHits = map.total_shots_hit || 0;
@@ -206,30 +184,6 @@ export function transformSteamStats(rawStats) {
   const planted = map.total_planted_bombs || 0;
   const defused = map.total_defused_bombs || 0;
 
-<<<<<<< HEAD
-  // If everything is zero, the account never played CS2.
-  if (totalKills === 0 && totalDeaths === 0 && rounds === 0) return null;
-
-  const weapons = STEAM_WEAPONS
-    .map(([key, displayName]) => ({
-      name: displayName,
-      key,
-      kills: map[`total_kills_${key}`] || 0,
-      shots: map[`total_shots_${key}`] || 0,
-      hits: map[`total_hits_${key}`] || 0,
-    }))
-    .filter((w) => w.kills > 0)
-    .sort((a, b) => b.kills - a.kills);
-
-  // Only include maps from the current CS2 Active Duty + Reserve pool.
-  const maps = SUPPORTED_MAPS
-    .map((m) => ({
-      name: m.name,
-      pool: m.pool,
-      wins: map[`total_wins_map_${m.id}`] || 0,
-      rounds: map[`total_rounds_map_${m.id}`] || 0,
-    }))
-=======
   if (totalKills === 0 && totalDeaths === 0 && rounds === 0) return null;
 
   const { weapons, meta } = buildWeapons(map, totalKills);
@@ -240,7 +194,6 @@ export function transformSteamStats(rawStats) {
     wins: map[`total_wins_map_${m.id}`] || 0,
     rounds: map[`total_rounds_map_${m.id}`] || 0,
   }))
->>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)
     .filter((m) => m.rounds > 0)
     .map((m) => ({ ...m, winRate: m.rounds ? (m.wins / m.rounds) * 100 : 0 }))
     .sort((a, b) => b.rounds - a.rounds);
@@ -263,10 +216,6 @@ export function transformSteamStats(rawStats) {
     },
     weapons,
     maps,
-<<<<<<< HEAD
-  };
-}
-=======
     meta,
   };
 }
@@ -283,4 +232,3 @@ export function auditWeaponStats(rawStats) {
     .map(([name, value]) => ({ name, value }));
   return { totalKills, knife, knifeRelated, meta, topWeapons: weapons.slice(0, 5) };
 }
->>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)

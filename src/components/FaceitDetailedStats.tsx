@@ -699,19 +699,11 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
             <Row label="ADR" value={r.avgADR ? r.avgADR.toFixed(1) : (lifetime["ADR"] || "—")} />
           </Group>
 
-<<<<<<< HEAD
-          <Group title="Kills" big={totalKills.toLocaleString()}>
-            <Row label="Deaths" value={totalDeaths.toLocaleString()} />
-            <Row label="Assists" value={totalAssists.toLocaleString()} />
-            <Row label="K/R" value={lifetimeKR !== null ? lifetimeKR.toFixed(2) : totalRounds > 0 ? (recentKills / totalRounds).toFixed(2) : "—"} />
-            <Row label="K/D" value={lifetimeKD !== null ? lifetimeKD.toFixed(2) : totalDeaths > 0 ? (recentKills / totalDeaths).toFixed(2) : "—"} />
-=======
           <Group title="Kills" big={totalKills != null ? totalKills.toLocaleString() : "—"}>
             <Row label="Deaths" value={totalDeaths > 0 ? totalDeaths.toLocaleString() : "—"} />
             <Row label="Assists" value={totalAssists > 0 ? totalAssists.toLocaleString() : "—"} />
             <Row label="K/R" value={totalKills != null && totalRounds > 0 ? (totalKills / totalRounds).toFixed(2) : "—"} />
             <Row label="K/D" value={totalKills != null && totalDeaths > 0 ? (totalKills / totalDeaths).toFixed(2) : "—"} />
->>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)
             <Row label="Headshots" value={Math.round(totalHeadshots).toLocaleString()} />
             <Row label="Headshot %" value={`${headshotPct.toFixed(0)}%`} />
           </Group>

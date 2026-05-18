@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { Header } from "./components/Header";
 import { Landing } from "./components/Landing";
 import { Dashboard } from "./components/Dashboard";
@@ -205,6 +206,7 @@ export default function App() {
           <Landing onLogin={handleLogin} onDemo={handleDemo} />
         )}
       </div>
+      <Analytics />
     </CurrencyProvider>
   );
 }

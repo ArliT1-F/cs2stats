@@ -13,11 +13,7 @@ import { FriendsSearch } from "./FriendsSearch";
 import { SectionNavRibbon, SectionNavSidebar, useSectionNav } from "./SectionNav";
 import { SourceBadge } from "./SourceBadge";
 import { ErrorBoundary } from "./ErrorBoundary";
-<<<<<<< HEAD
-import { AdvertisementBanner } from "./AdvertisementBanner";
-=======
 import { useState } from "react";
->>>>>>> bb9eb04 (feat: enhance Dashboard and add FriendsSearch component for improved user interaction)
 
 export function Dashboard({
   profile,
@@ -68,11 +64,6 @@ export function Dashboard({
         <ProfileBanner profile={profile} faceit={faceit} stats={stats} />
       </ErrorBoundary>
 
-<<<<<<< HEAD
-      <div className="mt-6">
-        <AdvertisementBanner placement="dashboard" />
-      </div>
-=======
       {!isPublicView && (
         <section id="friends" className="mt-4 scroll-mt-[var(--scroll-offset)]">
           <button
@@ -97,7 +88,6 @@ export function Dashboard({
           )}
         </section>
       )}
->>>>>>> bb9eb04 (feat: enhance Dashboard and add FriendsSearch component for improved user interaction)
 
       {/* ─── STEAM (Lifetime: Premier + Casual + Deathmatch combined) ─── */}
       <SourceDivider source="steam" label="Steam Lifetime Data" note="Includes Premier, Competitive, Casual & Deathmatch · Steam does not separate by mode" />
@@ -171,15 +161,7 @@ export function Dashboard({
         </ErrorBoundary>
       </section>
 
-<<<<<<< HEAD
-      <div className="mt-12">
-        <AdvertisementBanner placement="section" compact />
-      </div>
-
-      <footer className="mt-16 border-t border-cs-border pt-6 text-center">
-=======
       <footer className="mt-10 border-t border-cs-border pt-4 text-center">
->>>>>>> bb9eb04 (feat: enhance Dashboard and add FriendsSearch component for improved user interaction)
         <p className="font-mono text-xs text-slate-600">
           Data sourced from Steam Web API &amp; Faceit Open API · Updated live
         </p>
