@@ -38,35 +38,42 @@ let cache = {
 
 async function loadPriceDb(source = "buff163") {
   // Return cached if still valid AND same source
-  const now = Date.now();
-  if (cache.data && cache.source === source && now - cache.fetchedAt < CACHE_TTL_MS) {
-    return cache.data;
-  }
-
-  // Coalesce concurrent calls
-  if (cache.fetching) {
-    await cache.fetching;
-    return cache.data;
-  }
-
-  cache.fetching = (async () => {
-    const url = PRICE_SOURCES[source] || PRICE_SOURCES.buff163;
-    const r = await fetch(url, {
-      headers: { "User-Agent": "CS2Tracker/1.0" },
-    });
-    if (!r.ok) {
-      cache.fetching = null;
-      throw new Error(`Price DB fetch failed: ${r.status}`);
+  while (true) {
+    const now = Date.now();
+    if (cache.data && cache.source === source && now - cache.fetchedAt < CACHE_TTL_MS) {
+      return cache.data;
     }
-    const j = await r.json();
-    cache.source = source;
-    cache.data = j;
-    cache.fetchedAt = Date.now();
-    cache.fetching = null;
-  })();
 
-  try { await cache.fetching; } catch { cache.fetching = null; }
-  return cache.data;
+    // Never return directly after an in-flight fetch: it may have populated a
+    // different source. Re-check the cache before deciding whether to fetch.
+    if (cache.fetching) {
+      try { await cache.fetching; } catch {}
+      continue;
+    }
+
+    const fetchPromise = (async () => {
+      const url = PRICE_SOURCES[source] || PRICE_SOURCES.buff163;
+      const r = await fetch(url, {
+        headers: { "User-Agent": "CS2Tracker/1.0" },
+      });
+      if (!r.ok) {
+        throw new Error(`Price DB fetch failed: ${r.status}`);
+      }
+      const j = await r.json();
+      cache.source = source;
+      cache.data = j;
+      cache.fetchedAt = Date.now();
+    })();
+
+    cache.fetching = fetchPromise;
+    try {
+      await fetchPromise;
+    } catch {
+      return null;
+    } finally {
+      if (cache.fetching === fetchPromise) cache.fetching = null;
+    }
+  }
 }
 
 // Look up a single market_hash_name. Returns { lowestPrice, source, raw }
