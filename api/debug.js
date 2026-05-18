@@ -1,6 +1,8 @@
 // Debug endpoint - shows exactly what Steam's API is returning for the
 // logged-in user. Visit /api/debug after signing in to diagnose issues.
 
+import { auditWeaponStats } from "./_steamStats.js";
+
 function parseCookies(req) {
   const header = req.headers.cookie || "";
   if (!header) return {};
@@ -78,6 +80,7 @@ export default async function handler(req, res) {
           : totalKills === 0
           ? "Stats exist but all zeros — odd, may be a fresh account"
           : "✅ Real stats found! Should display correctly.";
+      out.cs2StatsEndpoint.weaponAudit = auditWeaponStats(stats);
     } else if (r.status === 403) {
       out.cs2StatsEndpoint.diagnosis = "403 Forbidden — Your Steam profile's Game Details privacy is set to Private or Friends Only. Go to your Steam profile → Edit Profile → Privacy Settings → set 'Game details' to PUBLIC.";
     } else if (r.status === 400) {

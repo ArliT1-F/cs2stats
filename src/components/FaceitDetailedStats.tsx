@@ -32,10 +32,8 @@ export function FaceitDetailedStats({ faceit }: { faceit: FaceitData | null }) {
   return (
     <div className="space-y-6">
       <PerformanceMetrics lifetime={lifetime} matches={matches} />
-      <OtherStats lifetime={lifetime} matches={matches} />
       <PlayActivity activity={allActivity} />
       <EloProgress matches={matches} lightHistory={lightHistory} currentElo={faceit.player.games?.cs2?.faceit_elo} />
-      <MapHighlights matches={matches} />
       <TotalStatsPanel lifetime={lifetime} matches={matches} />
     </div>
   );
@@ -67,13 +65,10 @@ function PerformanceMetrics({
   const tiles: Array<{ label: string; value: number | null; suffix?: string; delta: number | null; good: "high" | "low" }> = [
     { label: "Win rate", value: winRate, suffix: "%", delta: deltaPct(recent.winRate, winRate), good: "high" },
     { label: "ADR", value: adr, delta: delta(recent.avgADR, adr), good: "high" },
-    { label: "K/R", value: kr, delta: delta(recent.avgKR, kr, 2), good: "high" },
-    { label: "Clutch Success", value: clutchRate, suffix: "%", delta: deltaPct(recent.clutchRate, clutchRate), good: "high" },
-    { label: "Entry Success", value: entryRate, suffix: "%", delta: deltaPct(recent.entrySuccess, entryRate), good: "high" },
+    { label: "K/D", value: num(lifetime["Average K/D Ratio"]) ?? num(lifetime["K/D Ratio"]), delta: null, good: "high" },
     { label: "Headshot %", value: hsPct, suffix: "%", delta: deltaPct(recent.avgHS, hsPct), good: "high" },
-    { label: "Flash Success", value: flashPct, suffix: "%", delta: deltaPct(recent.flashSuccess, flashPct), good: "high" },
-    { label: "Flashes per round", value: flashPerRound, delta: delta(recent.flashesPerRound, flashPerRound, 2), good: "high" },
-    { label: "Utility dmg / Round", value: utilDmgPerRound, delta: delta(recent.utilDmgPerRound, utilDmgPerRound, 1), good: "high" },
+    { label: "Entry success", value: entryRate, suffix: "%", delta: deltaPct(recent.entrySuccess, entryRate), good: "high" },
+    { label: "Clutch win %", value: clutchRate, suffix: "%", delta: deltaPct(recent.clutchRate, clutchRate), good: "high" },
   ];
 
   return (
@@ -664,8 +659,10 @@ function HighlightCard({ label, suffix, map, value, recent }: { label: string; s
 function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, string>; matches: FaceitMatch[] }) {
   const r = aggregateMatches(matches);
   const totalMatches = num(lifetime["Matches"]) ?? matches.length;
-  const wins = num(lifetime["Wins"]) ?? matches.filter((m) => m.won).length;
-  const losses = totalMatches - wins;
+  const wins = num(lifetime["Wins"]) ?? num(lifetime["Total Wins"]) ?? matches.filter((m) => m.won).length;
+  const losses =
+    num(lifetime["Losses"]) ??
+    (totalMatches != null && wins != null ? Math.max(0, totalMatches - wins) : null);
   const winRate = num(lifetime["Win Rate %"]) ?? (totalMatches ? (wins / totalMatches) * 100 : 0);
 
   // Aggregates from recent matches (since FACEIT lifetime doesn't expose all of these)
@@ -702,11 +699,19 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
             <Row label="ADR" value={r.avgADR ? r.avgADR.toFixed(1) : (lifetime["ADR"] || "—")} />
           </Group>
 
+<<<<<<< HEAD
           <Group title="Kills" big={totalKills.toLocaleString()}>
             <Row label="Deaths" value={totalDeaths.toLocaleString()} />
             <Row label="Assists" value={totalAssists.toLocaleString()} />
             <Row label="K/R" value={lifetimeKR !== null ? lifetimeKR.toFixed(2) : totalRounds > 0 ? (recentKills / totalRounds).toFixed(2) : "—"} />
             <Row label="K/D" value={lifetimeKD !== null ? lifetimeKD.toFixed(2) : totalDeaths > 0 ? (recentKills / totalDeaths).toFixed(2) : "—"} />
+=======
+          <Group title="Kills" big={totalKills != null ? totalKills.toLocaleString() : "—"}>
+            <Row label="Deaths" value={totalDeaths > 0 ? totalDeaths.toLocaleString() : "—"} />
+            <Row label="Assists" value={totalAssists > 0 ? totalAssists.toLocaleString() : "—"} />
+            <Row label="K/R" value={totalKills != null && totalRounds > 0 ? (totalKills / totalRounds).toFixed(2) : "—"} />
+            <Row label="K/D" value={totalKills != null && totalDeaths > 0 ? (totalKills / totalDeaths).toFixed(2) : "—"} />
+>>>>>>> 5712691 (feat: enhance dashboard and stats components with new features and UI improvements)
             <Row label="Headshots" value={Math.round(totalHeadshots).toLocaleString()} />
             <Row label="Headshot %" value={`${headshotPct.toFixed(0)}%`} />
           </Group>
@@ -719,12 +724,10 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
             <Row label="First kill / Round" value={totalRounds > 0 ? (sumStat(matches, "firstKills") / totalRounds).toFixed(2) : "—"} />
           </Group>
 
-          <Group title="Multiple eliminations">
-            <Row label="Aces" value={sumStat(matches, "pentaKills")} accent />
-            <Row label="4k" value={sumStat(matches, "quadroKills")} />
-            <Row label="3k" value={sumStat(matches, "tripleKills")} />
-            <Row label="2k" value={"—"} />
-            <Row label="1k" value={"—"} />
+          <Group title="Multi-kills">
+            <Row label="Aces" value={num(lifetime["Total Aces"]) ?? sumStat(matches, "pentaKills")} accent />
+            <Row label="4k rounds" value={sumStat(matches, "quadroKills")} />
+            <Row label="3k rounds" value={sumStat(matches, "tripleKills")} />
           </Group>
 
           <Group title="Weapons">
@@ -754,7 +757,7 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
           </Group>
         </div>
         <div className="mt-4 border-t border-cs-border pt-3 font-mono text-[10px] uppercase tracking-widest text-slate-600">
-          // Lifetime totals from FACEIT API · Detailed breakdowns aggregated from your last {matches.length} matches with full stats
+          // Lifetime from FACEIT · Entry/utility/clutch rows from last {matches.length} detailed matches when lifetime omits them
         </div>
       </div>
     </div>

@@ -112,7 +112,7 @@ export function Dashboard({
       <section id="weapons" className="mt-6 scroll-mt-[var(--scroll-offset)]">
         <SectionHeader number="02" title="Steam Weapon Arsenal" subtitle="Lifetime kills, accuracy & HS% per weapon" badge="steam" />
         <ErrorBoundary label="WeaponsSection">
-          <WeaponsSection weapons={stats.weapons} />
+          <WeaponsSection weapons={stats.weapons} overview={stats.overview} />
         </ErrorBoundary>
       </section>
 

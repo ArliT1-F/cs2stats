@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import type { MapStat } from "../lib/demoData";
 import { SUPPORTED_MAPS, ACTIVE_DUTY_MAPS, getMapBanner } from "../lib/mapPool";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, ReferenceLine } from "recharts";
 
 type Filter = "premier" | "all";
 
@@ -106,8 +106,10 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <XAxis dataKey="name" stroke="#475569" tick={{ fill: "#e2e8f0", fontSize: 11, fontWeight: 600 }} />
-                <YAxis stroke="#475569" tick={{ fill: "#94a3b8", fontSize: 11 }} unit="%" />
+                <YAxis stroke="#475569" tick={{ fill: "#94a3b8", fontSize: 11 }} unit="%" domain={[0, 100]} />
+                <ReferenceLine y={50} stroke="#64748b" strokeDasharray="4 4" label={{ value: "50%", fill: "#64748b", fontSize: 10, position: "insideTopRight" }} />
                 <Tooltip
+                  formatter={(v: number) => [`${v}%`, "Win rate"]}
                   contentStyle={{ background: "#11172a", border: "1px solid #1f2942", borderRadius: 0 }}
                   labelStyle={{ color: "#f59e0b", fontWeight: 700 }}
                   cursor={{ fill: "rgba(245,158,11,0.05)" }}

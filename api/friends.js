@@ -119,10 +119,16 @@ async function fetchSteamFriends(steamId, key) {
     return { friends: [], total: 0 };
   }
 
+  const total = list.steamIds.length;
   const profiles = await batchSteamProfiles(list.steamIds, key);
   const friends = profiles.map(mapSteamFriend);
   friends.sort((a, b) => a.personaName.localeCompare(b.personaName, undefined, { sensitivity: "base" }));
-  return { friends, total: friends.length };
+  return {
+    friends,
+    total,
+    loaded: friends.length,
+    partial: friends.length < total,
+  };
 }
 
 function filterFriends(friends, q) {

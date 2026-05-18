@@ -6,7 +6,7 @@
 // for streaming-progressive UI loading.
 
 import { generateDemoStats } from "./_demoData.js";
-import { SUPPORTED_MAPS } from "./_mapPool.js";
+import { transformSteamStats } from "./_steamStats.js";
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
@@ -39,64 +39,6 @@ async function fetchCs2Stats(steamId, key) {
   const stats = j?.playerstats?.stats;
   if (!stats || stats.length === 0) return { error: "empty_stats" };
   return { stats };
-}
-
-function transformSteamStats(rawStats) {
-  if (!rawStats) return null;
-  const map = {};
-  for (const s of rawStats) map[s.name] = s.value;
-  const totalKills = map.total_kills || 0;
-  const totalDeaths = map.total_deaths || 0;
-  if (totalKills === 0 && totalDeaths === 0 && (map.total_rounds_played || 0) === 0) return null;
-
-  const weaponNames = [
-    ["ak47","AK-47"],["m4a1","M4A4"],["m4a1_silencer","M4A1-S"],["awp","AWP"],
-    ["glock","Glock-18"],["hkp2000","P2000"],["usp_silencer","USP-S"],
-    ["deagle","Desert Eagle"],["p250","P250"],["fiveseven","Five-SeveN"],
-    ["elite","Dual Berettas"],["tec9","Tec-9"],["cz75a","CZ75-Auto"],
-    ["revolver","R8 Revolver"],["famas","FAMAS"],["galilar","Galil AR"],
-    ["sg556","SG 553"],["aug","AUG"],["ssg08","SSG 08"],["scar20","SCAR-20"],
-    ["g3sg1","G3SG1"],["mp9","MP9"],["mp7","MP7"],["mp5sd","MP5-SD"],
-    ["ump45","UMP-45"],["mac10","MAC-10"],["p90","P90"],["bizon","PP-Bizon"],
-    ["nova","Nova"],["xm1014","XM1014"],["sawedoff","Sawed-Off"],["mag7","MAG-7"],
-    ["negev","Negev"],["m249","M249"],["knife","Knife"],["taser","Zeus x27"],
-  ];
-  const weapons = weaponNames
-    .map(([key, name]) => ({
-      name, key,
-      kills: map[`total_kills_${key}`] || 0,
-      shots: map[`total_shots_${key}`] || 0,
-      hits: map[`total_hits_${key}`] || 0,
-    }))
-    .filter((w) => w.kills > 0)
-    .sort((a, b) => b.kills - a.kills);
-
-  const maps = SUPPORTED_MAPS
-    .map((m) => ({
-      name: m.name, pool: m.pool,
-      wins: map[`total_wins_map_${m.id}`] || 0,
-      rounds: map[`total_rounds_map_${m.id}`] || 0,
-    }))
-    .filter((m) => m.rounds > 0)
-    .map((m) => ({ ...m, winRate: m.rounds ? (m.wins / m.rounds) * 100 : 0 }))
-    .sort((a, b) => b.rounds - a.rounds);
-
-  return {
-    overview: {
-      kills: totalKills, deaths: totalDeaths,
-      kd: totalDeaths ? +(totalKills / totalDeaths).toFixed(2) : totalKills,
-      accuracy: (map.total_shots_fired || 0) ? +(((map.total_shots_hit || 0) / map.total_shots_fired) * 100).toFixed(2) : 0,
-      headshotPct: totalKills ? +(((map.total_kills_headshot || 0) / totalKills) * 100).toFixed(2) : 0,
-      wins: map.total_wins || 0, rounds: map.total_rounds_played || 0,
-      winRate: (map.total_rounds_played || 0) ? +(((map.total_wins || 0) / map.total_rounds_played) * 100).toFixed(2) : 0,
-      mvps: map.total_mvps || 0,
-      hoursPlayed: +((map.total_time_played || 0) / 3600).toFixed(1),
-      moneyEarned: map.total_money_earned || 0,
-      bombsPlanted: map.total_planted_bombs || 0,
-      bombsDefused: map.total_defused_bombs || 0,
-    },
-    weapons, maps,
-  };
 }
 
 const REASONS = {

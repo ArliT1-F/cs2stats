@@ -173,7 +173,7 @@ function summarizeMatch(match, playerId, detail, statsJson) {
           pentaKills: numOrNull(ps["Penta Kills"]),
           // Extended CS2 stats (FACEIT exposes when match has full match-stats)
           damage: numOrNull(ps["Damage"]),
-          firstKills: numOrNull(ps["First Kills"]) ?? numOrNull(ps["Entry Count"]),
+          firstKills: numOrNull(ps["First Kills"]),
           firstDeaths: numOrNull(ps["First Deaths"]),
           entryCount: numOrNull(ps["Entry Count"]),
           entryWins: numOrNull(ps["Entry Wins"]),

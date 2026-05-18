@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Profile, Stats, FaceitData } from "../lib/demoData";
+import { FaceitLogo } from "./FaceitLogo";
 
 export function ProfileBanner({
   profile,
@@ -51,7 +52,10 @@ export function ProfileBanner({
 
         {lvl && (
           <div className="flex flex-col items-center gap-2 border-l border-cs-border pl-6">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Faceit</div>
+            <div className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-slate-500">
+              <FaceitLogo className="h-3 w-3 text-cs-orange" />
+              FACEIT
+            </div>
             <FaceitBadge level={lvl} />
             <div className="font-display text-2xl font-bold text-white">{elo}</div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500">ELO</div>

@@ -66,7 +66,7 @@ function summarizeMatch(match, playerId, detail, statsJson, statsAvailable) {
           quadroKills: numOrNull(ps["Quadro Kills"]),
           pentaKills: numOrNull(ps["Penta Kills"]),
           damage: numOrNull(ps["Damage"]),
-          firstKills: numOrNull(ps["First Kills"]) ?? numOrNull(ps["Entry Count"]),
+          firstKills: numOrNull(ps["First Kills"]),
           firstDeaths: numOrNull(ps["First Deaths"]),
           entryCount: numOrNull(ps["Entry Count"]),
           entryWins: numOrNull(ps["Entry Wins"]),

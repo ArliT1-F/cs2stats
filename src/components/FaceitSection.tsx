@@ -1,4 +1,16 @@
 import type { FaceitData } from "../lib/demoData";
+import { FaceitLogo } from "./FaceitLogo";
+
+const LIFETIME_DISPLAY: [string, string][] = [
+  ["Matches", "Matches"],
+  ["Wins", "Wins"],
+  ["Win Rate %", "Win Rate"],
+  ["Average K/D Ratio", "Avg K/D"],
+  ["Average Headshots %", "HS %"],
+  ["ADR", "ADR"],
+  ["Longest Win Streak", "Best Streak"],
+  ["Current Win Streak", "Streak"],
+];
 
 export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
   if (!faceit?.player) {
@@ -28,7 +40,7 @@ export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
     (s) => s.mode === "5v5" || !s.mode
   );
 
-  const statEntries = Object.entries(lifetime).slice(0, 8);
+  const statEntries = LIFETIME_DISPLAY.map(([key, label]) => [label, lifetime[key]] as const).filter(([, v]) => v != null && v !== "");
 
   return (
     <div className="space-y-5">
@@ -37,7 +49,10 @@ export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
         <div className="relative overflow-hidden border border-cs-border bg-gradient-to-br from-orange-900/30 via-cs-panel to-cs-bg p-6 clip-corner">
           <div className="absolute inset-0 tactical-grid opacity-30" />
           <div className="relative">
-            <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// FACEIT RANK</div>
+            <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-cs-orange">
+              <FaceitLogo className="h-4 w-4" />
+              FACEIT RANK
+            </div>
             <div className="mt-2 font-display text-3xl font-bold uppercase tracking-tight text-white">
               {faceit.player.nickname}
             </div>

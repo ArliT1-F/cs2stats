@@ -39,12 +39,30 @@ export function generateDemoStats(seed = "demo") {
     ["UMP-45", "ump45"], ["P90", "p90"], ["Nova", "nova"], ["XM1014", "xm1014"],
     ["MAC-10", "mac10"], ["Knife", "knife"], ["HE Grenade", "hegrenade"],
   ];
-  const weapons = weaponPool.map(([name, key]) => {
-    const k = r(50, 8000);
-    const shots = r(k * 4, k * 25);
-    const hits = Math.floor(shots * (0.15 + rng() * 0.25));
-    return { name, key, kills: k, shots, hits };
-  }).sort((a, b) => b.kills - a.kills);
+  let weapons = weaponPool.map(([name, key]) => {
+    const isKnife = key === "knife";
+    const maxK = isKnife ? Math.max(5, Math.floor(kills * 0.025)) : 8000;
+    const k = isKnife ? r(1, maxK) : r(50, maxK);
+    const shots = isKnife ? 0 : r(k * 4, k * 25);
+    const hits = isKnife ? 0 : Math.floor(shots * (0.15 + rng() * 0.25));
+    return { name, key, kills: k, shots, hits, noAccuracy: isKnife || key === "hegrenade" };
+  });
+  const rawSum = weapons.reduce((s, w) => s + w.kills, 0);
+  const targetSum = Math.floor(kills * 0.82);
+  if (rawSum > targetSum && rawSum > 0) {
+    const scale = targetSum / rawSum;
+    weapons = weapons.map((w) => ({
+      ...w,
+      kills: Math.max(w.key === "knife" ? 0 : 1, Math.floor(w.kills * scale)),
+    }));
+  }
+  weapons = weapons
+    .filter((w) => w.kills > 0)
+    .map((w) => ({
+      ...w,
+      pctOfKills: kills > 0 ? +((w.kills / kills) * 100).toFixed(1) : 0,
+    }))
+    .sort((a, b) => b.kills - a.kills);
 
   const maps = SUPPORTED_MAPS.map(({ name, pool }) => {
     const rds = r(200, 4000);
