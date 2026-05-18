@@ -11,11 +11,32 @@
   --font-display: "Rajdhani", "Inter", system-ui, sans-serif;
 }
 
+:root {
+  --header-h: 3.25rem;
+  --nav-ribbon-h: 2.25rem;
+  --scroll-offset: calc(var(--header-h) + var(--nav-ribbon-h) + 0.25rem);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --nav-ribbon-h: 0px;
+    --scroll-offset: calc(var(--header-h) + 0.75rem);
+  }
+}
+
 html, body {
   background: #0a0e1a;
   color: #e2e8f0;
   font-family: 'Rajdhani', system-ui, sans-serif;
   letter-spacing: 0.01em;
+}
+
+.nav-ribbon-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.nav-ribbon-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* CS2-themed scrollbar */

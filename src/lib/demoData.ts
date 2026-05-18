@@ -61,6 +61,46 @@ export interface Profile {
   profileurl: string;
 }
 
+export interface FriendEntry {
+  source: "steam" | "faceit";
+  steamId: string | null;
+  faceitId?: string;
+  personaName: string;
+  avatar: string | null;
+  country: string | null;
+  faceitLevel?: number | null;
+  faceitElo?: number | null;
+  online?: boolean;
+}
+
+const DEMO_FRIEND_NAMES = [
+  "s1mple_fan", "NiKo_42", "ZywOo_peek", "ropz_anchor", "b1t_rush",
+  "m0NESY_go", "device_awp", "frozen_ice", "jL_entry", "broky_flick",
+  "karrigan_igl", "Twistzz_na", "rain_norway", "EliGE_na", "NAF_flex",
+  "apEX_vit", "Spinx_de", "flameZ_il", "mezii_uk", "stavn_dk",
+];
+
+export function generateDemoFriends(source: "steam" | "faceit"): FriendEntry[] {
+  const rng = seeded(`friends-${source}`);
+  const count = source === "steam" ? 18 : 14;
+  return Array.from({ length: count }, (_, i) => {
+    const name = DEMO_FRIEND_NAMES[i % DEMO_FRIEND_NAMES.length];
+    const suffix = source === "faceit" ? "_fct" : "";
+    const steamId = `7656119${String(8000000000 + i * 7919).slice(0, 10)}`;
+    return {
+      source,
+      steamId: source === "faceit" && i === 2 ? null : steamId,
+      faceitId: source === "faceit" ? `demo-faceit-${i}` : undefined,
+      personaName: `${name}${suffix}`,
+      avatar: null,
+      country: ["us", "de", "se", "ru", "br", "dk", "pl", "fr"][Math.floor(rng() * 8)],
+      faceitLevel: source === "faceit" ? Math.floor(rng() * 10) + 1 : null,
+      faceitElo: source === "faceit" ? Math.floor(rng() * 2000) + 800 : null,
+      online: source === "steam" && rng() > 0.6,
+    };
+  });
+}
+
 export interface FaceitMatchPlayer {
   playerId: string;
   nickname: string;

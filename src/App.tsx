@@ -183,7 +183,7 @@ export default function App() {
           <>
             {/* Live status banner — only on own profile (not public view) */}
             {!session.isPublicView && (
-              <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
+              <div className="mx-auto mt-2 max-w-7xl px-4 sm:px-6">
                 <ErrorBoundary label="LiveStatusBanner">
                   <LiveStatusBanner steamId={session.profile.steamid} isDemo={session.isDemo} />
                 </ErrorBoundary>

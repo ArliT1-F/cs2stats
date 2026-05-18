@@ -14,23 +14,23 @@ export function ProfileBanner({
   const elo = faceit?.player?.games?.cs2?.faceit_elo;
 
   return (
-    <div className="relative overflow-hidden border border-cs-border bg-gradient-to-br from-cs-panel to-cs-bg p-5 clip-corner sm:p-7">
+    <div className="relative overflow-hidden border border-cs-border bg-gradient-to-br from-cs-panel to-cs-bg p-4 clip-corner sm:p-5">
       <div className="absolute inset-0 tactical-grid opacity-40" />
       <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-cs-orange/10 blur-3xl" />
 
-      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative">
           <div className="absolute -inset-1 bg-cs-orange/40 blur-md" />
           <img
             src={profile.avatarfull}
             alt={`${profile.personaname} CS2 player avatar`}
-            className="relative h-24 w-24 border-2 border-cs-orange object-cover sm:h-28 sm:w-28"
+            className="relative h-16 w-16 border-2 border-cs-orange object-cover sm:h-20 sm:w-20"
           />
         </div>
 
         <div className="flex-1">
           <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// OPERATIVE</div>
-          <h1 className="font-display text-3xl font-bold uppercase tracking-tight text-white sm:text-4xl">
+          <h1 className="font-display text-2xl font-bold uppercase tracking-tight text-white sm:text-3xl">
             {profile.personaname}
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 font-mono text-xs text-slate-500">
@@ -41,7 +41,7 @@ export function ProfileBanner({
             <ShareLink steamId={profile.steamid} />
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             <QuickStat label="K/D Ratio" value={stats.overview.kd.toFixed(2)} accent />
             <QuickStat label="Headshot %" value={`${stats.overview.headshotPct.toFixed(1)}%`} />
             <QuickStat label="Accuracy" value={`${stats.overview.accuracy.toFixed(1)}%`} />
