@@ -2,26 +2,17 @@
 // logged-in user. Visit /api/debug after signing in to diagnose issues.
 
 import { auditWeaponStats } from "./_steamStats.js";
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getAuthenticatedSteamId, parseCookies } from "./_auth.js";
 
 export default async function handler(req, res) {
   const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getAuthenticatedSteamId(req);
   const STEAM_KEY = process.env.STEAM_API_KEY;
 
   const out = {
     cookieFound: !!steamId,
     steamId: steamId || null,
+    legacySteamIdCookieFound: !!cookies.steamid,
     hasSteamApiKey: !!STEAM_KEY,
     steamApiKeyLength: STEAM_KEY ? STEAM_KEY.length : 0,
     hasFaceitApiKey: !!process.env.FACEIT_API_KEY,
@@ -30,7 +21,7 @@ export default async function handler(req, res) {
   };
 
   if (!steamId) {
-    out.next = "No `steamid` cookie found. Sign in via /api/auth/steam first.";
+    out.next = "No valid signed session found. Sign in via /api/auth/steam first.";
     return res.json(out);
   }
   if (!STEAM_KEY) {

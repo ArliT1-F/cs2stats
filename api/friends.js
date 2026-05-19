@@ -1,21 +1,12 @@
 // Authenticated friends list — Steam (GetFriendList) or FACEIT (friends_ids on player).
-// Requires steamid cookie. Optional ?q= filters by nickname (case-insensitive).
+// Requires a signed Steam session cookie. Optional ?q= filters by nickname (case-insensitive).
+
+import { getAuthenticatedSteamId } from "./_auth.js";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map();
 const MAX_FACEIT_FETCH = 80;
 const FACEIT_CONCURRENCY = 8;
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
 
 async function fetchSteamFriendIds(steamId, key) {
   const url = `https://api.steampowered.com/ISteamUser/GetFriendList/v1/?key=${key}&steamid=${steamId}&relationship=friend`;
@@ -142,8 +133,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "method_not_allowed" });
   }
 
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getAuthenticatedSteamId(req);
   if (!steamId) {
     return res.status(401).json({ error: "not_authenticated" });
   }
