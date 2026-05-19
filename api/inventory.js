@@ -15,17 +15,7 @@
 // response is small and fast). In full mode they happen server-side.
 
 import { getPricesBulk, getCacheStatus } from "./_priceCache.js";
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getAuthenticatedSteamId } from "./_auth.js";
 
 const COMMON_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
@@ -343,8 +333,7 @@ function invErrorMessage(code) {
 // MAIN HANDLER
 // ──────────────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getAuthenticatedSteamId(req);
   if (!steamId) return res.status(401).json({ error: "Not logged in" });
 
   const url = new URL(req.url, `http://${req.headers.host}`);

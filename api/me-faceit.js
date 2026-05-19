@@ -3,16 +3,7 @@
 // the basic endpoint because it makes ~22 FACEIT API calls (player + stats +
 // 50 history + 10 match details + 10 match stats).
 
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getAuthenticatedSteamId } from "./_auth.js";
 
 function numOrNull(v) {
   if (v === null || v === undefined || v === "") return null;
@@ -166,8 +157,7 @@ function summarizeMatch(match, playerId, detail, statsJson, statsAvailable) {
 }
 
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getAuthenticatedSteamId(req);
   if (!steamId) return res.status(401).json({ error: "Not logged in" });
 
   const FACEIT_KEY = process.env.FACEIT_API_KEY;

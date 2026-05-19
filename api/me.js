@@ -5,17 +5,7 @@
 
 import { generateDemoStats } from "./_demoData.js";
 import { transformSteamStats } from "./_steamStats.js";
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getAuthenticatedSteamId } from "./_auth.js";
 
 async function fetchSteamProfile(steamId, key) {
   const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${key}&steamids=${steamId}`;
@@ -343,8 +333,7 @@ const REASON_MESSAGES = {
 };
 
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getAuthenticatedSteamId(req);
   if (!steamId) {
     return res.status(401).json({ error: "Not logged in" });
   }

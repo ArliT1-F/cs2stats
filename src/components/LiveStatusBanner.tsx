@@ -37,7 +37,7 @@ export function LiveStatusBanner({ steamId, isDemo }: { steamId: string; isDemo:
     let cancelled = false;
     const poll = async () => {
       try {
-        const r = await fetch(`/api/live?steamid=${steamId}`, { credentials: "include" });
+        const r = await fetch("/api/live", { credentials: "include" });
         if (!r.ok) return;
         const j = await r.json();
         if (!cancelled) setStatus(j);
