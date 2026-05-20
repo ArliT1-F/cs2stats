@@ -155,7 +155,7 @@ export function Dashboard({
       </section>
 
       <section id="demos" className="mt-6 scroll-mt-[var(--scroll-offset)]">
-        <SectionHeader number="09" title="Match Demos" subtitle="Download & watch CS2 replay files" badge="faceit" />
+        <SectionHeader number="09" title="2D Demo Replay" subtitle="Parsed kills, positions, weapons & facing direction" badge="faceit" />
         <ErrorBoundary label="DemosSection">
           <DemosSection matches={faceit?.matches} />
         </ErrorBoundary>
