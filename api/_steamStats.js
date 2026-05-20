@@ -220,7 +220,7 @@ export function transformSteamStats(rawStats) {
   };
 }
 
-/** Audit helper for /api/debug */
+/** Audit helper for diagnostics responses */
 export function auditWeaponStats(rawStats) {
   const map = {};
   for (const s of rawStats || []) map[s.name] = s.value;
