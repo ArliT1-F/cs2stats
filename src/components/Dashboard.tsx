@@ -254,8 +254,8 @@ function DemoBanner({ reason, message }: { reason?: string | null; message?: str
           )}
           <div className="mt-3 font-mono text-[11px] text-slate-500">
             Need more info? Visit{" "}
-            <a href="/api/debug" target="_blank" rel="noopener noreferrer" className="text-cs-blue hover:underline">
-              /api/debug
+            <a href="/api/me?debug=1" target="_blank" rel="noopener noreferrer" className="text-cs-blue hover:underline">
+              /api/me?debug=1
             </a>{" "}
             for full diagnostics.
           </div>
