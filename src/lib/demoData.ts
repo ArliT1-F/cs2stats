@@ -167,6 +167,8 @@ export interface FaceitMatch {
   competition: string;
   matchUrl: string;
   demoUrl: string | null;
+  demoResourceUrl?: string | null;
+  demoUnavailableReason?: string | null;
   teams: FaceitMatchTeam[];
   totalRounds?: number | null;
   eloChange?: number | null;

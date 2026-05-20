@@ -15,7 +15,9 @@ export function DemosSection({ matches }: { matches: FaceitMatch[] | undefined }
     () => parsedDemo.kills.find((event) => event.id === selectedKillId) || parsedDemo.kills[0],
     [parsedDemo.kills, selectedKillId]
   );
-  const matchesWithDemos = (matches || []).filter((match) => match.demoUrl);
+  const matchesWithDemos = (matches || []).filter(
+    (match) => match.demoUrl || match.demoResourceUrl || match.demoUnavailableReason
+  );
 
   if (!selectedKill) {
     return (
@@ -373,7 +375,7 @@ function DemoDownloadCard({ match }: { match: FaceitMatch }) {
         )}
       </div>
       <div className="mt-3 flex flex-col gap-2">
-        {match.demoUrl && (
+        {match.demoUrl ? (
           <a
             href={match.demoUrl}
             target="_blank"
@@ -382,6 +384,21 @@ function DemoDownloadCard({ match }: { match: FaceitMatch }) {
           >
             Download .dem
           </a>
+        ) : match.demoUnavailableReason ? (
+          <div className="border border-cs-orange/30 bg-cs-orange/10 px-3 py-2 text-xs text-slate-300">
+            <div className="font-display font-bold uppercase tracking-wider text-cs-orange">
+              Signed download required
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              FACEIT returned a private resource URL. The worker needs FACEIT Downloads API
+              access to turn it into a temporary signed URL.
+            </p>
+          </div>
+        ) : null}
+        {match.demoResourceUrl && !match.demoUrl && (
+          <div className="break-all border border-cs-border bg-cs-panel/60 px-2 py-1.5 font-mono text-[10px] text-slate-500">
+            resource: {match.demoResourceUrl}
+          </div>
         )}
         <a
           href={match.matchUrl}

@@ -4,6 +4,7 @@
 // explaining why so the UI can show a helpful message.
 
 import { generateDemoStats } from "./_demoData.js";
+import { buildFaceitDemoInfo } from "./_faceitDemos.js";
 import { auditWeaponStats, transformSteamStats } from "./_steamStats.js";
 
 function parseCookies(req) {
@@ -278,6 +279,8 @@ function summarizeMatch(match, playerId, detail, statsJson) {
     || round?.round_stats?.["round_results"]
     || null;
 
+  const demoInfo = buildFaceitDemoInfo(match, detail);
+
   return {
     matchId: match.match_id,
     map,
@@ -287,7 +290,7 @@ function summarizeMatch(match, playerId, detail, statsJson) {
     startedAt: match.started_at || null,
     competition: match.competition_name || detail?.competition_name || "FACEIT",
     matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
-    demoUrl: match.demo_url?.[0] || detail?.demo_url?.[0] || null,
+    ...demoInfo,
     eloChange,
     roundResultsRaw,
     teams,

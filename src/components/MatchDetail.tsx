@@ -90,7 +90,7 @@ export function MatchDetail({ match, onClose }: { match: FaceitMatch; onClose?: 
           MATCH ID: {match.matchId}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {match.demoUrl && (
+          {match.demoUrl ? (
             <a
               href={match.demoUrl}
               target="_blank"
@@ -99,7 +99,11 @@ export function MatchDetail({ match, onClose }: { match: FaceitMatch; onClose?: 
             >
               ↓ Demo (.dem)
             </a>
-          )}
+          ) : match.demoUnavailableReason ? (
+            <span className="border border-cs-orange/40 bg-cs-orange/10 px-3 py-1.5 font-display text-xs font-bold uppercase tracking-wider text-cs-orange">
+              Demo needs signed URL
+            </span>
+          ) : null}
           <a
             href={match.matchUrl}
             target="_blank"

@@ -77,8 +77,40 @@ For Valve matchmaking demos, you will need:
    - Recommended: Fly.io, Render worker, Railway worker, ECS/Fargate, or a
      small VPS. Do not parse demos in Vercel functions.
 
-For FACEIT demos, the existing FACEIT API response often includes a `demo_url`.
-Those can be queued directly without the Valve auth-code flow.
+For FACEIT demos, the existing FACEIT API response often includes a `demo_url`,
+but that value is usually a private cloud resource URL, not a direct public
+download link. FACEIT demos are private by default. To download them
+programmatically, apply for the FACEIT Downloads API and exchange the resource
+URL for a signed temporary `download_url`.
+
+Apply here:
+
+```txt
+https://fce.gg/downloads-api-application
+```
+
+The Downloads API endpoint is:
+
+```txt
+POST https://open.faceit.com/download/v2/demos/download
+Authorization: Bearer <FACEIT_DOWNLOADS_API_TOKEN>
+Content-Type: application/json
+
+{ "resource_url": "<demo_url from the FACEIT Data API>" }
+```
+
+The response contains:
+
+```json
+{
+  "payload": {
+    "download_url": "https://signed-temporary-demo-url..."
+  }
+}
+```
+
+The worker should download `payload.download_url`, not the raw `demo_url`
+resource value.
 
 ## Recommended database shape
 
@@ -230,7 +262,8 @@ metadata has offsets or orientation differences.
 2. Create object storage for raw demos.
 3. Create a separate worker service.
 4. Implement FACEIT demo ingestion first because this app already receives
-   `demoUrl` from FACEIT matches.
+   FACEIT demo resource URLs. You still need FACEIT Downloads API approval to
+   turn those resources into signed download URLs.
 5. Add Valve match-history ingestion after the auth-code and bot flow are ready.
 6. Add a read API in this repo only after parsed data exists. Because the Hobby
    plan has a 12-function limit, add it to an existing function or consolidate
