@@ -1,3 +1,5 @@
+import { clearAuthCookies, createSteamSessionCookie } from "../../_auth.js";
+
 // Vercel Serverless Function: Steam OpenID callback
 // Verifies the OpenID response, extracts the SteamID64, sets a cookie,
 // and redirects back to the app.
@@ -33,16 +35,14 @@ export default async function handler(req, res) {
     if (!match) return res.redirect(302, `/?auth=failed`);
     const steamId = match[1];
 
-    // Set httpOnly cookie with SteamID (1 week)
-    // Only mark Secure on HTTPS so the cookie also works on http://localhost during dev
-    const isHttps = (req.headers["x-forwarded-proto"] || "https") === "https"
-                    && !host.startsWith("localhost");
-    const secureFlag = isHttps ? " Secure;" : "";
     res.setHeader(
       "Set-Cookie",
-      `steamid=${steamId}; Path=/; Max-Age=604800; HttpOnly;${secureFlag} SameSite=Lax`
+      [
+        createSteamSessionCookie(req, steamId),
+        ...clearAuthCookies(req).filter((cookie) => cookie.startsWith("steamid=")),
+      ]
     );
-    res.redirect(302, `/?auth=success&steamid=${steamId}`);
+    res.redirect(302, `/?auth=success`);
   } catch (e) {
     res.redirect(302, `/?auth=failed`);
   }

@@ -144,6 +144,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     let cursor: string | null = null;
     let totalInv: number | null = null;
     let pagesFetched = 0;
+    let stoppedPartial = false;
+    let terminalError = false;
     const MAX_PAGES = 30;
 
     try {
@@ -154,6 +156,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
 
         if (!r.ok) {
           setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
+          stoppedPartial = true;
+          terminalError = true;
           break;
         }
         const j: {
@@ -168,6 +172,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
 
         if (j.error) {
           setError(j.message || j.error);
+          stoppedPartial = true;
+          terminalError = true;
           break;
         }
         if (j.totalInventoryCount != null) totalInv = j.totalInventoryCount;
@@ -192,10 +198,13 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         }
       } while (cursor && pagesFetched < MAX_PAGES);
       if (myToken.cancelled) return;
-      // Final settle: mark partial=false now that the loop ended cleanly
+      const finalPartial =
+        stoppedPartial ||
+        cursor !== null ||
+        (totalInv !== null && allItems.length < totalInv);
       if (allItems.length > 0) {
-        setData(aggregateInto(allItems, totalInv, false, source));
-      } else if (!error) {
+        setData(aggregateInto(allItems, totalInv, finalPartial, source));
+      } else if (!terminalError) {
         // Distinguish "truly empty inventory" from "Steam returned a degraded
         // empty response" (the latter is almost always a soft rate limit).
         // Total >0 but items 0 = Steam knows the inventory has items but
