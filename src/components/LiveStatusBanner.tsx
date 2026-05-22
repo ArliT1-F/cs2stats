@@ -17,7 +17,7 @@ interface LiveStatus {
   error?: string;
 }
 
-export function LiveStatusBanner({ steamId, isDemo }: { steamId: string; isDemo: boolean }) {
+export function LiveStatusBanner({ isDemo }: { isDemo: boolean }) {
   const [status, setStatus] = useState<LiveStatus | null>(null);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function LiveStatusBanner({ steamId, isDemo }: { steamId: string; isDemo:
     let cancelled = false;
     const poll = async () => {
       try {
-        const r = await fetch(`/api/live?steamid=${steamId}`, { credentials: "include" });
+        const r = await fetch("/api/live", { credentials: "include" });
         if (!r.ok) return;
         const j = await r.json();
         if (!cancelled) setStatus(j);
@@ -48,7 +48,7 @@ export function LiveStatusBanner({ steamId, isDemo }: { steamId: string; isDemo:
     poll();
     const interval = setInterval(poll, 30_000);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [steamId, isDemo]);
+  }, [isDemo]);
 
   if (!status?.isLive) return null;
 
