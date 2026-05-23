@@ -21,6 +21,7 @@ export function Dashboard({
   faceit,
   isDemo,
   isPublicView,
+  usedDemoStats,
   demoReason,
   demoMessage,
 }: {
@@ -29,6 +30,7 @@ export function Dashboard({
   faceit: FaceitData | null;
   isDemo: boolean;
   isPublicView?: boolean;
+  usedDemoStats?: boolean;
   demoReason?: string | null;
   demoMessage?: string | null;
 }) {
@@ -58,7 +60,7 @@ export function Dashboard({
           </div>
         </div>
       )}
-      {isDemo && <DemoBanner reason={demoReason} message={demoMessage} />}
+      {(isDemo || usedDemoStats) && <DemoBanner reason={demoReason} message={demoMessage} />}
 
       <ErrorBoundary label="ProfileBanner">
         <ProfileBanner profile={profile} faceit={faceit} stats={stats} />

@@ -6,7 +6,19 @@ import { getMapBanner, faceitLevelColor } from "../lib/mapPool";
 
 export function MatchDetail({ match, onClose }: { match: FaceitMatch; onClose?: () => void }) {
   const banner = getMapBanner(match.map);
-  const [teamA, teamB] = match.teams.length >= 2 ? match.teams : [match.teams[0], match.teams[0]];
+  const fallbackTeam: FaceitMatchTeam = {
+    teamId: "unknown",
+    name: "Team",
+    avatar: null,
+    score: null,
+    won: null,
+    firstHalfScore: null,
+    secondHalfScore: null,
+    overtimeScore: null,
+    players: [],
+  };
+  const teams = match.teams.length > 0 ? match.teams : [fallbackTeam, fallbackTeam];
+  const [teamA, teamB] = teams.length >= 2 ? teams : [teams[0], teams[0]];
 
   return (
     <div className="overflow-hidden border border-cs-border bg-cs-bg clip-corner">
