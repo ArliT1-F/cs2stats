@@ -3,12 +3,45 @@
 // shareable links, and player comparison. Heavy in-memory caching since
 // public profiles change slowly.
 
-import { generateDemoStats } from "../_demoData.js";
 import { transformSteamStats } from "../_steamStats.js";
 
 // 5-minute in-memory cache per warm Lambda
 const profileCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+const PUBLIC_PROFILE_ERRORS = {
+  no_steam_key: {
+    status: 503,
+    message: "Public profiles require STEAM_API_KEY to fetch real Steam stats.",
+  },
+  private_profile: {
+    status: 403,
+    message: "This Steam profile's game details are private.",
+  },
+  no_cs2_stats: {
+    status: 404,
+    message: "Steam returned no CS2 stats for this account.",
+  },
+  empty_stats: {
+    status: 404,
+    message: "Steam returned an empty CS2 stats response for this account.",
+  },
+};
+
+function sendUnavailableStats(res, reason) {
+  const details = PUBLIC_PROFILE_ERRORS[reason] || {
+    status: 502,
+    message: "Steam stats are temporarily unavailable for this profile.",
+  };
+
+  res.setHeader("Cache-Control", "no-store");
+  return res.status(details.status).json({
+    error: reason,
+    message: details.message,
+    usedDemo: false,
+    isPublicView: true,
+  });
+}
 
 async function fetchSteamProfile(steamId, key) {
   const r = await fetch(
@@ -75,22 +108,26 @@ export default async function handler(req, res) {
   let profile = null;
   let stats = null;
   let faceit = null;
-  let demoReason = null;
+  let unavailableReason = null;
 
   if (STEAM_KEY) {
     profile = await fetchSteamProfile(steamId, STEAM_KEY);
     const statsResp = await fetchCs2Stats(steamId, STEAM_KEY);
-    if (statsResp.error) demoReason = statsResp.error;
-    else stats = transformSteamStats(statsResp.stats);
+    if (statsResp.error) unavailableReason = statsResp.error;
+    else {
+      stats = transformSteamStats(statsResp.stats);
+      if (!stats) unavailableReason = "no_cs2_stats";
+    }
   } else {
-    demoReason = "no_steam_key";
+    unavailableReason = "no_steam_key";
+  }
+
+  if (unavailableReason) {
+    return sendUnavailableStats(res, unavailableReason);
   }
 
   if (FACEIT_KEY) faceit = await fetchFaceit(steamId, FACEIT_KEY);
 
-  if (!stats) {
-    stats = generateDemoStats(steamId);
-  }
   if (!profile) {
     profile = {
       steamid: steamId,
@@ -102,8 +139,8 @@ export default async function handler(req, res) {
 
   const data = {
     profile, stats, faceit,
-    usedDemo: !!demoReason,
-    demoReason,
+    usedDemo: false,
+    demoReason: null,
     isPublicView: true,
   };
 
