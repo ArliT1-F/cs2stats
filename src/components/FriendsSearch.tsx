@@ -8,6 +8,12 @@ interface FriendsSearchProps {
   compact?: boolean;
 }
 
+function friendDisplayName(friend: FriendEntry) {
+  return typeof friend.personaName === "string" && friend.personaName.trim()
+    ? friend.personaName.trim()
+    : "Unknown player";
+}
+
 export function FriendsSearch({ isDemo = false, compact = false }: FriendsSearchProps) {
   const [source, setSource] = useState<Source>("steam");
   const [q, setQ] = useState("");
@@ -65,7 +71,7 @@ export function FriendsSearch({ isDemo = false, compact = false }: FriendsSearch
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return friends;
-    return friends.filter((f) => f.personaName.toLowerCase().includes(needle));
+    return friends.filter((f) => friendDisplayName(f).toLowerCase().includes(needle));
   }, [friends, q]);
 
   const goToProfile = (steamId: string) => {
@@ -193,11 +199,12 @@ function FriendsList({
 
   return (
     <div className={`overflow-y-auto ${compact ? "max-h-[240px]" : "max-h-[420px]"}`}>
-      {friends.map((f) => {
+      {friends.map((f, index) => {
         const canView = !!f.steamId;
+        const displayName = friendDisplayName(f);
         return (
           <button
-            key={`${source}-${f.steamId || f.faceitId}`}
+            key={`${source}-${f.steamId || f.faceitId || index}`}
             type="button"
             onClick={() => f.steamId && onSelect(f.steamId)}
             disabled={!canView}
@@ -210,7 +217,7 @@ function FriendsList({
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="truncate font-display text-base font-bold text-white">{f.personaName}</span>
+                <span className="truncate font-display text-base font-bold text-white">{displayName}</span>
                 {f.online && (
                   <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" title="Online" />
                 )}
