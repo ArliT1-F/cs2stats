@@ -48,6 +48,7 @@ export interface InventoryResponse {
   currency?: number;
   priceSource?: string;
   partial?: boolean;
+  partialMessage?: string | null;
   diagnostics?: {
     totalInventoryCount?: number | null;
     pagesFetched?: number;
