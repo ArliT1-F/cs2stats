@@ -64,7 +64,13 @@ const RARITY_RANK: Record<string, number> = {
   "Mil-Spec Grade": 4, "Industrial Grade": 3, "Consumer Grade": 2,
   "Extraordinary": 9, "★": 10,
 };
-function aggregateInto(items: SkinItem[], totalInventoryCount: number | null, partial: boolean, priceSource: string): InventoryResponse {
+function aggregateInto(
+  items: SkinItem[],
+  totalInventoryCount: number | null,
+  partial: boolean,
+  priceSource: string,
+  partialMessage: string | null = null
+): InventoryResponse {
   const categories: Record<string, { items: SkinItem[]; totalValue: number; count: number }> = {};
   let totalEstimatedValue = 0;
   for (const it of items) {
@@ -104,6 +110,7 @@ function aggregateInto(items: SkinItem[], totalInventoryCount: number | null, pa
     priceSource,
     currency: 1,
     partial,
+    partialMessage,
     categories,
     bestPerWeapon,
   };
@@ -144,6 +151,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     let cursor: string | null = null;
     let totalInv: number | null = null;
     let pagesFetched = 0;
+    let loadError: string | null = null;
+    let partialMessage: string | null = null;
     const MAX_PAGES = 30;
 
     try {
@@ -153,7 +162,9 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         if (myToken.cancelled) return;
 
         if (!r.ok) {
-          setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
+          loadError = r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`;
+          partialMessage = loadError;
+          setError(loadError);
           break;
         }
         const j: {
@@ -167,7 +178,9 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         if (myToken.cancelled) return;
 
         if (j.error) {
-          setError(j.message || j.error);
+          loadError = j.message || j.error;
+          partialMessage = loadError;
+          setError(loadError);
           break;
         }
         if (j.totalInventoryCount != null) totalInv = j.totalInventoryCount;
@@ -178,24 +191,33 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         }
         pagesFetched++;
         // Update display progressively after each page
-        setData(aggregateInto(allItems, totalInv, j.more === true, source));
+        setData(aggregateInto(allItems, totalInv, j.more === true || (totalInv != null && allItems.length < totalInv), source));
         setProgress({ loaded: allItems.length, total: totalInv });
         // First page → flip from "loading" to "loaded but loadingMore"
-        if (loading) setLoading(false);
+        setLoading(false);
         if (j.more && j.nextCursor) {
           setLoadingMore(true);
           cursor = j.nextCursor;
           // Brief delay between pages to be polite
           await new Promise((r) => setTimeout(r, 400));
         } else {
+          if (j.more && !j.nextCursor) {
+            partialMessage = "Steam indicated more inventory pages but did not provide a cursor.";
+          }
           cursor = null;
         }
       } while (cursor && pagesFetched < MAX_PAGES);
       if (myToken.cancelled) return;
-      // Final settle: mark partial=false now that the loop ended cleanly
       if (allItems.length > 0) {
-        setData(aggregateInto(allItems, totalInv, false, source));
-      } else if (!error) {
+        if (cursor && pagesFetched >= MAX_PAGES) {
+          partialMessage = `Stopped after ${MAX_PAGES} inventory pages to avoid an endless Steam pagination loop.`;
+        }
+        const hasMissingItems = totalInv != null && allItems.length < totalInv;
+        if (hasMissingItems && !partialMessage) {
+          partialMessage = "Steam stopped pagination before all inventory items were returned.";
+        }
+        setData(aggregateInto(allItems, totalInv, !!partialMessage || hasMissingItems, source, partialMessage));
+      } else if (!loadError) {
         // Distinguish "truly empty inventory" from "Steam returned a degraded
         // empty response" (the latter is almost always a soft rate limit).
         // Total >0 but items 0 = Steam knows the inventory has items but
@@ -217,7 +239,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       }
       // Otherwise keep what we have, mark partial
       if (allItems.length > 0) {
-        setData(aggregateInto(allItems, totalInv, true, source));
+        setData(aggregateInto(allItems, totalInv, true, source, "Failed to load the remaining inventory pages."));
       }
     } finally {
       if (!myToken.cancelled) {
@@ -423,7 +445,8 @@ function InventoryView({
             ⚠ Partial inventory ({data.totalItems} of {data.totalInventoryCount} items loaded)
           </div>
           <div className="mt-1 text-slate-300">
-            Steam rate-limited the fetch before all pages could be retrieved.
+            {data.partialMessage || "Steam rate-limited the fetch before all pages could be retrieved."}
+            {" "}
             Wait ~60 seconds and refresh — the next attempt usually completes.
           </div>
         </div>
