@@ -2,6 +2,8 @@
 // Verifies the OpenID response, extracts the SteamID64, sets a cookie,
 // and redirects back to the app.
 
+import { clearSteamSessionCookies, createSteamSessionCookie } from "../../_auth.js";
+
 export default async function handler(req, res) {
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const proto = req.headers["x-forwarded-proto"] || "https";
@@ -33,14 +35,10 @@ export default async function handler(req, res) {
     if (!match) return res.redirect(302, `/?auth=failed`);
     const steamId = match[1];
 
-    // Set httpOnly cookie with SteamID (1 week)
-    // Only mark Secure on HTTPS so the cookie also works on http://localhost during dev
-    const isHttps = (req.headers["x-forwarded-proto"] || "https") === "https"
-                    && !host.startsWith("localhost");
-    const secureFlag = isHttps ? " Secure;" : "";
+    const sessionCookie = createSteamSessionCookie(req, steamId);
     res.setHeader(
       "Set-Cookie",
-      `steamid=${steamId}; Path=/; Max-Age=604800; HttpOnly;${secureFlag} SameSite=Lax`
+      [sessionCookie, ...clearSteamSessionCookies(req).slice(1)]
     );
     res.redirect(302, `/?auth=success&steamid=${steamId}`);
   } catch (e) {
