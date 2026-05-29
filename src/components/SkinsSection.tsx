@@ -144,6 +144,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
     let cursor: string | null = null;
     let totalInv: number | null = null;
     let pagesFetched = 0;
+    let terminalError: string | null = null;
     const MAX_PAGES = 30;
 
     try {
@@ -153,7 +154,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         if (myToken.cancelled) return;
 
         if (!r.ok) {
-          setError(r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`);
+          terminalError = r.status === 401 ? "Sign in with Steam to see your inventory" : `Error ${r.status}`;
+          setError(terminalError);
           break;
         }
         const j: {
@@ -167,7 +169,8 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         if (myToken.cancelled) return;
 
         if (j.error) {
-          setError(j.message || j.error);
+          terminalError = j.message || j.error;
+          setError(terminalError);
           break;
         }
         if (j.totalInventoryCount != null) totalInv = j.totalInventoryCount;
@@ -192,10 +195,19 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         }
       } while (cursor && pagesFetched < MAX_PAGES);
       if (myToken.cancelled) return;
-      // Final settle: mark partial=false now that the loop ended cleanly
+
+      const hitPageLimit = !!cursor && pagesFetched >= MAX_PAGES;
+      if (hitPageLimit) {
+        terminalError = `Stopped after loading ${MAX_PAGES} inventory pages. Refresh later to continue if items are missing.`;
+        setError(terminalError);
+      }
+      const loadedLessThanTotal = totalInv !== null && allItems.length < totalInv;
+      const partial = !!terminalError || hitPageLimit || loadedLessThanTotal;
+
+      // Final settle: only mark complete when pagination actually reached the end.
       if (allItems.length > 0) {
-        setData(aggregateInto(allItems, totalInv, false, source));
-      } else if (!error) {
+        setData(aggregateInto(allItems, totalInv, partial, source));
+      } else if (!terminalError) {
         // Distinguish "truly empty inventory" from "Steam returned a degraded
         // empty response" (the latter is almost always a soft rate limit).
         // Total >0 but items 0 = Steam knows the inventory has items but
@@ -247,6 +259,7 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
       onPriceSourceChange={setPriceSource}
       loadingMore={loadingMore}
       progress={progress}
+      error={error}
     />
   );
 }
@@ -314,12 +327,14 @@ function InventoryView({
   onPriceSourceChange,
   loadingMore,
   progress,
+  error,
 }: {
   data: InventoryResponse;
   priceSource: PriceSource;
   onPriceSourceChange: (s: PriceSource) => void;
   loadingMore?: boolean;
   progress?: { loaded: number; total: number | null };
+  error?: string | null;
 }) {
   // ━━━ ALL HOOKS — TOP, UNCONDITIONAL ━━━
   const [activeCategory, setActiveCategory] = useState<string>("Knife");
@@ -423,7 +438,7 @@ function InventoryView({
             ⚠ Partial inventory ({data.totalItems} of {data.totalInventoryCount} items loaded)
           </div>
           <div className="mt-1 text-slate-300">
-            Steam rate-limited the fetch before all pages could be retrieved.
+            {error || "Steam stopped the fetch before all pages could be retrieved."}
             Wait ~60 seconds and refresh — the next attempt usually completes.
           </div>
         </div>
