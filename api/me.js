@@ -5,17 +5,7 @@
 
 import { generateDemoStats } from "./_demoData.js";
 import { auditWeaponStats, transformSteamStats } from "./_steamStats.js";
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getSessionSteamId } from "./_auth.js";
 
 async function fetchSteamProfile(steamId, key) {
   const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${key}&steamids=${steamId}`;
@@ -354,7 +344,7 @@ async function handleDiagnostics(req, res, steamId, STEAM_KEY) {
   };
 
   if (!steamId) {
-    out.next = "No 'steamid' cookie found. Sign in via /api/auth/steam first.";
+    out.next = "No valid session cookie found. Sign in via /api/auth/steam first.";
     return res.json(out);
   }
 
@@ -420,8 +410,7 @@ async function handleDiagnostics(req, res, steamId, STEAM_KEY) {
 }
 
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getSessionSteamId(req);
   const url = new URL(req.url, `http://${req.headers.host}`);
   const debugDiagnostics = url.searchParams.get("debug") === "1";
 
