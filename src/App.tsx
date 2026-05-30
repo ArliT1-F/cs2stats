@@ -73,23 +73,43 @@ export default function App() {
   const fetchSession = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch("/api/me", { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        setSession({
-          profile: data.profile,
-          stats: data.stats,
-          faceit: data.faceit,
-          isDemo: !!data.usedDemo,
-          demoReason: data.demoReason,
-          demoMessage: data.demoMessage,
-        });
-      } else {
+      // Load Steam data first so the dashboard can render before the heavier
+      // FACEIT fan-out starts during the fragile post-OpenID navigation window.
+      const basicResp = await fetch("/api/me-basic", { credentials: "include" });
+      if (!basicResp.ok) {
         setSession(null);
+        setLoading(false);
+        return;
       }
+      const basic = await basicResp.json();
+      const steamId = basic.profile?.steamid;
+
+      setSession({
+        profile: basic.profile,
+        stats: basic.stats,
+        faceit: null,
+        isDemo: !!basic.usedDemo,
+        demoReason: basic.demoReason,
+        demoMessage: basic.demoMessage,
+      });
+      setLoading(false);
+
+      setTimeout(async () => {
+        try {
+          const faceitResp = await fetch("/api/me-faceit", { credentials: "include" });
+          if (!faceitResp.ok) return;
+          const faceit = await faceitResp.json();
+          setSession((prev) =>
+            prev && !prev.isPublicView && prev.profile?.steamid === steamId
+              ? { ...prev, faceit }
+              : prev
+          );
+        } catch {
+          // FACEIT is supplemental; keep the Steam dashboard if this request fails.
+        }
+      }, 250);
     } catch {
       setSession(null);
-    } finally {
       setLoading(false);
     }
   }, []);
