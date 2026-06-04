@@ -167,6 +167,8 @@ export interface FaceitMatch {
   competition: string;
   matchUrl: string;
   demoUrl: string | null;
+  demoResourceUrl?: string | null;
+  demoUnavailableReason?: string | null;
   teams: FaceitMatchTeam[];
   totalRounds?: number | null;
   eloChange?: number | null;
@@ -329,7 +331,7 @@ export function generateDemoProfile(seed = "demo"): Profile {
 export function generateDemoFaceit(seed = "demo"): FaceitData {
   const rng = seeded(seed + "_faceit");
   const elo = Math.floor(900 + rng() * 2400);
-  const lvl = Math.min(10, Math.max(1, Math.floor((elo - 800) / 250) + 1));
+  const playerLvl = Math.min(10, Math.max(1, 5 + Math.floor((rng() - 0.5) * 4)));
 
   const mapPool = ["Mirage","Dust II","Inferno","Nuke","Anubis","Ancient","Overpass","Train"];
   const segments = mapPool.map((m) => {
@@ -363,14 +365,14 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
     const d = Math.floor(8 + rng() * 22);
     const a = Math.floor(rng() * 8);
     const adr = Math.floor(40 + rng() * 80);
-    const lvl = Math.min(10, Math.max(1, lvl_ + Math.floor((rng() - 0.5) * 4)));
+    const playerLvl = Math.min(10, Math.max(1, playerLvl_ + Math.floor((rng() - 0.5) * 4)));
     return {
       playerId: `demo-player-${seed}-${idx}-${isMe ? "me" : "x"}`,
       nickname: nick,
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(nick)}&backgroundColor=f59e0b,4fb3ff,ef4444,22c55e`,
       country: countries[Math.floor(rng() * countries.length)],
-      skillLevel: lvl,
-      elo: 800 + lvl * 250 + Math.floor(rng() * 200),
+      skillLevel: playerLvl,
+      elo: 800 + playerLvl * 250 + Math.floor(rng() * 200),
       isMe,
       kills: k, deaths: d, assists: a,
       kdRatio: +(k / Math.max(d, 1)).toFixed(2),
@@ -405,7 +407,7 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
     };
   };
 
-  const lvl_ = lvl;
+  const playerLvl_ = playerLvl;
 
   const buildTeam = (factionId: string, name: string, score: number, won: boolean, includesMe: boolean, rounds: number): FaceitMatchTeam => {
     const teamSize = 5;
@@ -505,7 +507,7 @@ export function generateDemoFaceit(seed = "demo"): FaceitData {
       nickname: `FCT_${seed.slice(-5)}`,
       avatar: "",
       country: ["us","de","se","ru","br","fi","dk","pl"][Math.floor(rng() * 8)],
-      games: { cs2: { skill_level: lvl, faceit_elo: elo, region: "EU" } },
+      games: { cs2: { skill_level: playerLvl, faceit_elo: elo, region: "EU" } },
     },
     stats: {
       lifetime: buildDemoLifetime(rng),

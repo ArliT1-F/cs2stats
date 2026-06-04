@@ -38,6 +38,10 @@ export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
   const lifetime = faceit.stats?.lifetime || {};
   const segments = (faceit.stats?.segments || []).filter(
     (s) => s.mode === "5v5" || !s.mode
+  ).sort(
+    (a, b) =>
+      parseFloat(b.stats["Win Rate %"] || "0") -
+      parseFloat(a.stats["Win Rate %"] || "0")
   );
 
   const statEntries = LIFETIME_DISPLAY.map(([key, label]) => [label, lifetime[key]] as const).filter(([, v]) => v != null && v !== "");
@@ -116,12 +120,6 @@ export function FaceitSection({ faceit }: { faceit: FaceitData | null }) {
               </thead>
               <tbody>
                 {segments
-                  .slice()
-                  .sort(
-                    (a, b) =>
-                      parseFloat(b.stats["Win Rate %"] || "0") -
-                      parseFloat(a.stats["Win Rate %"] || "0")
-                  )
                   .map((s) => {
                     const wr = parseFloat(s.stats["Win Rate %"] || "0");
                     return (

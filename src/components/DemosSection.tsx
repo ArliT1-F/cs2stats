@@ -1,21 +1,11 @@
 import { useMemo, useState } from "react";
 import type { FaceitMatch } from "../lib/demoData";
-import {
-  SAMPLE_PARSED_DEMO,
-  findDemoPlayer,
-  type DemoKillEvent,
-  type DemoPlayerState,
-  type ParsedDemoMatch,
-} from "../lib/parseDemo";
+import { SAMPLE_PARSED_DEMO } from "../lib/parseDemo";
 
 
 export function DemosSection({ matches }: { matches: FaceitMatch[] | undefined }) {
   const parsedDemo = SAMPLE_PARSED_DEMO;
-  const [selectedKillId, setSelectedKillId] = useState(parsedDemo.kills[0]?.id || "");
-  const selectedKill = useMemo(
-    () => parsedDemo.kills.find((event) => event.id === selectedKillId) || parsedDemo.kills[0],
-    [parsedDemo.kills, selectedKillId]
-  );
+  const selectedKill = parsedDemo.kills[0];
   const matchesWithDemos = (matches || []).filter(
     (match) => match.demoUrl || match.demoResourceUrl || match.demoUnavailableReason
   );

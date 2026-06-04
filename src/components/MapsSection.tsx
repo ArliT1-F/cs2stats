@@ -109,7 +109,7 @@ export function MapsSection({ maps }: { maps: MapStat[] }) {
                 <YAxis stroke="#475569" tick={{ fill: "#94a3b8", fontSize: 11 }} unit="%" domain={[0, 100]} />
                 <ReferenceLine y={50} stroke="#64748b" strokeDasharray="4 4" label={{ value: "50%", fill: "#64748b", fontSize: 10, position: "insideTopRight" }} />
                 <Tooltip
-                  formatter={(v: number) => [`${v}%`, "Win rate"]}
+                  formatter={(v) => [`${v}%`, "Win Rate"]}
                   contentStyle={{ background: "#11172a", border: "1px solid #1f2942", borderRadius: 0 }}
                   labelStyle={{ color: "#f59e0b", fontWeight: 700 }}
                   cursor={{ fill: "rgba(245,158,11,0.05)" }}

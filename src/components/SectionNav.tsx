@@ -13,7 +13,7 @@ export function useSectionNav(isPublicView: boolean) {
 
   useEffect(() => {
     setActiveId(sections[0]?.id ?? "");
-  }, [sections]);
+  }, [isPublicView]);
 
   useEffect(() => {
     const elements = sections

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import type { FaceitData, FaceitMatch, LightHistoryItem } from "../lib/demoData";
-import { getMapBanner } from "../lib/mapPool";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip,
   LineChart, Line, ReferenceLine,
@@ -54,13 +53,9 @@ function PerformanceMetrics({
 
   const winRate = num(lifetime["Win Rate %"]);
   const adr = num(lifetime["ADR"]);
-  const kr = num(lifetime["K/R Ratio"]) ?? num(lifetime["Average K/R Ratio"]);
   const clutchRate = num(lifetime["1v1 Win Rate"]);
   const entryRate = num(lifetime["Entry Success Rate"]);
   const hsPct = num(lifetime["Average Headshots %"]);
-  const flashPct = num(lifetime["Flash Success Rate"]);
-  const flashPerRound = num(lifetime["Flashes per Round"]);
-  const utilDmgPerRound = num(lifetime["Utility Damage per Round"]);
 
   const tiles: Array<{ label: string; value: number | null; suffix?: string; delta: number | null; good: "high" | "low" }> = [
     { label: "Win rate", value: winRate, suffix: "%", delta: deltaPct(recent.winRate, winRate), good: "high" },
@@ -102,43 +97,6 @@ function MetricTile({
         </div>
       )}
       <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500">{label}</div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// OTHER STATS — quick counters
-// ────────────────────────────────────────────────────────────────────────────
-function OtherStats({ lifetime, matches }: { lifetime: Record<string, string>; matches: FaceitMatch[] }) {
-  const totalWins = num(lifetime["Wins"]) ?? num(lifetime["Total Wins"]);
-  const totalKills = num(lifetime["Total Kills with extended stats"]) ?? sumStat(matches, "kills");
-  const totalClutches = num(lifetime["Total Clutches"]);
-  const totalMVPs = num(lifetime["Total MVPs"]) ?? sumStat(matches, "mvps");
-  const totalAces = num(lifetime["Total Aces"]) ?? sumStat(matches, "pentaKills");
-
-  const tiles = [
-    { label: "Total wins", value: totalWins },
-    { label: "Total kills", value: totalKills },
-    { label: "Total clutches", value: totalClutches },
-    { label: "MVPs", value: totalMVPs },
-    { label: "Aces", value: totalAces },
-  ];
-
-  return (
-    <div>
-      <PanelHeader label="Other stats" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {tiles.map((t) => (
-          <div key={t.label} className="border border-cs-border bg-cs-panel p-4 clip-corner">
-            <div className="font-display text-2xl font-bold text-cs-orange">
-              {t.value !== null && t.value !== undefined ? formatNum(t.value) : "—"}
-            </div>
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-slate-500">
-              {t.label}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -556,106 +514,6 @@ function EloProgress({
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// MAP HIGHLIGHTS — best ADR / best Entry / best Clutch maps
-// ────────────────────────────────────────────────────────────────────────────
-function MapHighlights({ matches }: { matches: FaceitMatch[] }) {
-  const byMap = useMemo(() => {
-    const m: Record<string, FaceitMatch[]> = {};
-    for (const x of matches) {
-      const k = x.map || "—";
-      if (!m[k]) m[k] = [];
-      m[k].push(x);
-    }
-    return m;
-  }, [matches]);
-
-  if (Object.keys(byMap).length === 0) return null;
-
-  // Best ADR
-  const bestADR = Object.entries(byMap)
-    .map(([map, ms]) => ({
-      map,
-      value: avg(ms.map((m) => m.adr)) || 0,
-      recent: ms.slice(0, 3).map((m) => m.won),
-    }))
-    .sort((a, b) => b.value - a.value)[0];
-
-  const bestEntry = Object.entries(byMap)
-    .map(([map, ms]) => {
-      const totalAttempts = ms.reduce((s, m) => s + (m.entryCount || 0), 0);
-      const totalWins = ms.reduce((s, m) => s + (m.entryWins || 0), 0);
-      return {
-        map,
-        value: totalAttempts > 0 ? +((totalWins / totalAttempts) * 100).toFixed(0) : 0,
-        recent: ms.slice(0, 3).map((m) => m.won),
-      };
-    })
-    .sort((a, b) => b.value - a.value)[0];
-
-  const bestClutch = Object.entries(byMap)
-    .map(([map, ms]) => {
-      const wins = ms.reduce((s, m) => s + (m.oneVOneWins || 0) + (m.oneVTwoWins || 0), 0);
-      const losses = ms.reduce((s, m) => s + (m.oneVOneLosses || 0) + (m.oneVTwoLosses || 0), 0);
-      const total = wins + losses;
-      return {
-        map,
-        value: total > 0 ? +((wins / total) * 100).toFixed(0) : 0,
-        recent: ms.slice(0, 3).map((m) => m.won),
-      };
-    })
-    .sort((a, b) => b.value - a.value)[0];
-
-  return (
-    <div>
-      <PanelHeader label="Map highlights" />
-      <div className="grid gap-4 md:grid-cols-3">
-        <HighlightCard label="ADR" suffix="" map={bestADR.map} value={bestADR.value} recent={bestADR.recent} />
-        <HighlightCard label="Entry success %" suffix="%" map={bestEntry.map} value={bestEntry.value} recent={bestEntry.recent} />
-        <HighlightCard label="Clutch success %" suffix="%" map={bestClutch.map} value={bestClutch.value} recent={bestClutch.recent} />
-      </div>
-    </div>
-  );
-}
-
-function HighlightCard({ label, suffix, map, value, recent }: { label: string; suffix: string; map: string; value: number; recent: (boolean | null)[] }) {
-  return (
-    <div className="relative overflow-hidden border border-cs-border clip-corner">
-      <img src={getMapBanner(map)} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-      <div className="absolute inset-0 bg-gradient-to-br from-cs-bg/85 via-cs-bg/65 to-cs-bg/95" />
-      <div className="relative p-5">
-        <div className="flex items-baseline gap-2">
-          <div className="font-display text-4xl font-black text-cs-orange text-glow">
-            {value.toFixed(value < 10 ? 1 : 0)}{suffix}
-          </div>
-          <div className="font-mono text-xs uppercase tracking-widest text-slate-300">{label}</div>
-        </div>
-        <div className="mt-1 font-display text-2xl font-bold uppercase tracking-tight text-white">
-          {map}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <div className="font-mono text-[10px] uppercase text-slate-400">Recent results</div>
-          <div className="flex gap-1">
-            {recent.slice(0, 5).map((r, i) => (
-              <span
-                key={i}
-                className={`flex h-5 w-5 items-center justify-center font-display text-[10px] font-black ${
-                  r ? "bg-emerald-500/30 text-emerald-300" : r === false ? "bg-cs-red/30 text-cs-red" : "bg-slate-500/30 text-slate-400"
-                }`}
-              >
-                {r ? "W" : r === false ? "L" : "—"}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// TOTAL STATS — the big detailed breakdown panel
-// ────────────────────────────────────────────────────────────────────────────
 function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, string>; matches: FaceitMatch[] }) {
   const r = aggregateMatches(matches);
   const totalMatches = num(lifetime["Matches"]) ?? matches.length;
@@ -674,8 +532,6 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
   const totalDeaths = sumStat(matches, "deaths");
   const totalAssists = sumStat(matches, "assists");
   const totalHeadshots = sumStat(matches, "headshots") || recentKills * (r.avgHS / 100);
-  const lifetimeKR = num(lifetime["K/R Ratio"]) ?? num(lifetime["Average K/R Ratio"]);
-  const lifetimeKD = num(lifetime["Average K/D Ratio"]) ?? num(lifetime["K/D Ratio"]);
   const headshotPct = num(lifetime["Average Headshots %"]) ?? r.avgHS;
 
   return (
@@ -692,9 +548,9 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
             <Row label="Current win streak" value={lifetime["Current Win Streak"]} />
           </Group>
 
-          <Group title="Recent rounds" big={totalRounds ? totalRounds.toLocaleString() : "—"}>
-            <Row label="Rounds won" value={totalRounds ? recentRounds.won.toLocaleString() : "—"} />
-            <Row label="Rounds win rate" value={totalRounds ? `${((recentRounds.won / totalRounds) * 100).toFixed(0)}%` : "—"} />
+          <Group title="Recent rounds" big={r.totalRounds ? r.totalRounds.toLocaleString() : "—"}>
+            <Row label="Rounds won" value={totalRounds ? r.wonRounds.toLocaleString() : "—"} />
+            <Row label="Rounds win rate" value={totalRounds ? `${((r.wonRounds / r.totalRounds) * 100).toFixed(0)}%` : "—"} />
             <Row label="Total damage" value={Math.round(totalDamage).toLocaleString()} />
             <Row label="ADR" value={r.avgADR ? r.avgADR.toFixed(1) : (lifetime["ADR"] || "—")} />
           </Group>
@@ -702,7 +558,7 @@ function TotalStatsPanel({ lifetime, matches }: { lifetime: Record<string, strin
           <Group title="Kills" big={totalKills != null ? totalKills.toLocaleString() : "—"}>
             <Row label="Deaths" value={totalDeaths > 0 ? totalDeaths.toLocaleString() : "—"} />
             <Row label="Assists" value={totalAssists > 0 ? totalAssists.toLocaleString() : "—"} />
-            <Row label="K/R" value={totalKills != null && totalRounds > 0 ? (totalKills / totalRounds).toFixed(2) : "—"} />
+            <Row label="K/R" value={totalKills != null && r.totalRounds > 0 ? (totalKills / totalRounds).toFixed(2) : "—"} />
             <Row label="K/D" value={totalKills != null && totalDeaths > 0 ? (totalKills / totalDeaths).toFixed(2) : "—"} />
             <Row label="Headshots" value={Math.round(totalHeadshots).toLocaleString()} />
             <Row label="Headshot %" value={`${headshotPct.toFixed(0)}%`} />
@@ -812,6 +668,7 @@ function aggregateMatches(matches: FaceitMatch[]) {
       avgADR: 0, avgKR: 0, avgHS: 0, winRate: 0,
       entrySuccess: 0, clutchRate: 0, flashSuccess: 0,
       flashesPerRound: 0, utilDmgPerRound: 0,
+      totalRounds: 0 as number, wonRounds: 0 as number,
     };
   }
   const n = matches.length;
@@ -819,6 +676,25 @@ function aggregateMatches(matches: FaceitMatch[]) {
     matches.reduce((s, m) => s + (Number(m[key]) || 0), 0);
   const totalRounds = matches.reduce((s, m) => s + (m.totalRounds || 0), 0) || n * 24;
   const wins = matches.filter((m) => m.won).length;
+
+  // Calculate team's actual rounds won using FACEIT's per-team score data
+  let wonRounds = 0;
+  for (const m of matches) {
+    const ownTeam = m.teams.find((team) => team.players.some((p) => p.isMe));
+    if (ownTeam?.score != null) {
+      wonRounds += ownTeam.score;
+    } else {
+      // Fallback: parse score string for rounds if team score unavailable (should be rare)
+      const scores = m.score.match(/\d+/g)?.map(Number) || [];
+      if (scores.length >= 2) {
+        if (m.won) {
+          wonRounds += Math.max(scores[0], scores[1]);
+        } else if (m.won === false) {
+          wonRounds += Math.min(scores[0], scores[1]);
+        }
+      }
+    }
+  }
 
   const entryAttempts = sum("entryCount");
   const entryWins = sum("entryWins");
@@ -837,6 +713,7 @@ function aggregateMatches(matches: FaceitMatch[]) {
     flashSuccess: flashTotal > 0 ? (flashSucc / flashTotal) * 100 : 0,
     flashesPerRound: flashTotal / Math.max(totalRounds, 1),
     utilDmgPerRound: sum("utilityDamage") / Math.max(totalRounds, 1),
+    totalRounds, wonRounds,
   };
 }
 
@@ -869,11 +746,6 @@ function num(v: string | number | undefined | null): number | null {
   if (v === undefined || v === null || v === "") return null;
   const n = parseFloat(String(v).replace(/,/g, ""));
   return Number.isFinite(n) ? n : null;
-}
-function avg(arr: (number | null | undefined)[]): number | null {
-  const filtered = arr.filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
-  if (filtered.length === 0) return null;
-  return filtered.reduce((a, b) => a + b, 0) / filtered.length;
 }
 function delta(recent: number | null, base: number | null, decimals = 1): number | null {
   if (recent === null || base === null) return null;

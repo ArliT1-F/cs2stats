@@ -26,7 +26,6 @@ function ChartTooltip({
 export function WeaponsSection({ weapons, overview }: { weapons: WeaponStat[]; overview?: Stats["overview"] }) {
   const totalKills = overview?.kills ?? weapons.reduce((s, w) => s + w.kills, 0);
   const top = weapons.slice(0, 10);
-  const maxKills = Math.max(...top.map((w) => w.kills), 1);
   const top3 = weapons.slice(0, 3);
 
   const chartData = top.map((w) => ({
@@ -124,7 +123,6 @@ export function WeaponsSection({ weapons, overview }: { weapons: WeaponStat[]; o
               {top.map((w) => {
                 const pct = w.pctOfKills ?? (totalKills > 0 ? (w.kills / totalKills) * 100 : 0);
                 const acc = !w.noAccuracy && w.shots ? (w.hits / w.shots) * 100 : null;
-                const barPct = (w.kills / maxKills) * 100;
                 return (
                   <tr key={w.name} className="border-b border-cs-border/50 hover:bg-cs-bg/40">
                     <td className="py-2 pr-2">
