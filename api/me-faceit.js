@@ -2,6 +2,7 @@
 // /api/me-basic so the FACEIT panel can stream in independently. Slower than
 // the basic endpoint because it makes ~22 FACEIT API calls (player + stats +
 // 50 history + 10 match details + 10 match stats).
+import { buildFaceitDemoInfo } from "./_faceotDemos.js";
 
 function parseCookies(req) {
   const header = req.headers.cookie || "";
@@ -126,6 +127,8 @@ function summarizeMatch(match, playerId, detail, statsJson, statsAvailable) {
   const totalRounds = teams.length === 2 && teams[0].score !== null && teams[1].score !== null
     ? (teams[0].score || 0) + (teams[1].score || 0) : null;
 
+  const demoInfo = buildFaceitDemoInfo(match, detail);
+
   return {
     matchId: match.match_id,
     map,
@@ -135,7 +138,7 @@ function summarizeMatch(match, playerId, detail, statsJson, statsAvailable) {
     startedAt: match.started_at || null,
     competition: match.competition_name || detail?.competition_name || "FACEIT",
     matchUrl: `https://www.faceit.com/en/cs2/room/${match.match_id}`,
-    demoUrl: match.demo_url?.[0] || detail?.demo_url?.[0] || null,
+    ...demoInfo,
     eloChange: match?.elo_change ?? null,
     roundResultsRaw: round?.round_stats?.["Rounds"] || null,
     statsAvailable,

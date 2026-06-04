@@ -1,44 +1,58 @@
+import { useMemo, useState } from "react";
 import type { FaceitMatch } from "../lib/demoData";
+import {
+  SAMPLE_PARSED_DEMO,
+  findDemoPlayer,
+  type DemoKillEvent,
+  type DemoPlayerState,
+  type ParsedDemoMatch,
+} from "../lib/parseDemo";
 
-// CS2 demos are .dem files (Source 2 replay format) — they are NOT video files
-// and cannot be played in a <video> tag. They can only be played inside CS2
-// itself or analyzed with tools like demoinfocs / CSDM. This component:
-//   1. Explains that honestly
-//   2. Lets users download .dem files from their FACEIT matches
-//   3. Provides instructions for playing them in CS2
 
 export function DemosSection({ matches }: { matches: FaceitMatch[] | undefined }) {
-  const matchesWithDemos = (matches || []).filter((m) => m.demoUrl);
+  const parsedDemo = SAMPLE_PARSED_DEMO;
+  const [selectedKillId, setSelectedKillId] = useState(parsedDemo.kills[0]?.id || "");
+  const selectedKill = useMemo(
+    () => parsedDemo.kills.find((event) => event.id === selectedKillId) || parsedDemo.kills[0],
+    [parsedDemo.kills, selectedKillId]
+  );
+  const matchesWithDemos = (matches || []).filter(
+    (match) => match.demoUrl || match.demoResourceUrl || match.demoUnavailableReason
+  );
+
+  if (!selectedKill) {
+    return (
+      <div className="border border-dashed border-cs-border bg-cs-panel/50 p-8 text-center clip-corner">
+        <div className="font-mono text-xs uppercase tracking-widest text-slate-500">// NO PARSED DEMO DATA</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
-      {/* Explainer card */}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2 border border-cs-border bg-cs-panel p-5 clip-corner">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center bg-cs-orange/10 text-cs-orange clip-corner">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="font-display text-lg font-bold uppercase tracking-wide text-white">
-                About CS2 Demos
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="font-mono text-xs uppercase tracking-widest text-cs-orange">// 2D DEMO PARSER MVP</div>
+              <h3 className="mt-2 font-display text-xl font-black uppercase tracking-wide text-white">
+                Parsed Demo Replay
               </h3>
-              <p className="mt-2 text-sm text-slate-400">
-                CS2 records matches as <span className="font-mono text-cs-orange">.dem</span> files
-                — Source 2 engine replays containing every tick of game state. They're{" "}
-                <strong className="text-white">not video files</strong> and can only be played
-                inside CS2 itself, where you get full free-camera, X-Ray, and replay controls.
+              <p className="mt-2 max-w-3xl text-sm text-slate-400">
+                This is the browser viewer we need for csstats.gg-style analysis. The map uses
+                parsed demo events: player positions, facing direction, names, teams, weapons,
+                kill timing, and special kill flags. Real matches will populate this same schema
+                once the external parser worker is connected.
               </p>
-              <p className="mt-2 text-sm text-slate-400">
-                Browser MP4 playback would require server-side rendering with CS2 + HLAE/OBS
-                running 24/7 — not possible on Vercel. So instead, we make it as easy as
-                possible to grab the demo and watch it where it looks best: in-game.
-              </p>
+              <div className="border border-cs-blue/30 bg-cs-blue/10 px-3 py-2 text-right clip-corner">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-cs-blue">Sample data</div>
+              <div className="font-display text-lg font-black text-white">{parsedDemo.map.displayName}</div>
+              <div className="font-mono text-xs text-slate-400">
+                {parsedDemo.score.t} T - {parsedDemo.score.ct} CT
+              </div>
             </div>
           </div>
+        </div>
         </div>
 
         <div className="border border-cs-border bg-cs-panel p-5 clip-corner">
