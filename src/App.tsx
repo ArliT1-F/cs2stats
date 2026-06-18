@@ -186,7 +186,7 @@ export default function App() {
             {!session.isPublicView && (
               <div className="mx-auto mt-2 max-w-7xl px-4 sm:px-6">
                 <ErrorBoundary label="LiveStatusBanner">
-                  <LiveStatusBanner steamId={session.profile.steamid} isDemo={session.isDemo} />
+                  <LiveStatusBanner isDemo={session.isDemo} />
                 </ErrorBoundary>
               </div>
             )}
