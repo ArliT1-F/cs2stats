@@ -4,19 +4,9 @@
 // explaining why so the UI can show a helpful message.
 
 import { generateDemoStats } from "./_demoData.js";
+import { getSessionSteamId } from "./_auth.js";
 import { auditWeaponStats, transformSteamStats } from "./_steamStats.js";
 import { buildFaceitDemoInfo } from "./_faceotDemos.js";
-
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
 
 async function fetchSteamProfile(steamId, key) {
   const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${key}&steamids=${steamId}`;
@@ -423,8 +413,7 @@ async function handleDiagnostics(req, res, steamId, STEAM_KEY) {
 }
 
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
-  const steamId = cookies.steamid;
+  const steamId = getSessionSteamId(req);
   const url = new URL(req.url, `http://${req.headers.host}`);
   const debugDiagnostics = url.searchParams.get("debug") === "1";
 

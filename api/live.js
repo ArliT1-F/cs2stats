@@ -15,16 +15,7 @@
 //   - duration of current session (when entered game, if recent)
 //   - a "isLive" flag the UI can use to show the LIVE NOW banner
 
-function parseCookies(req) {
-  const header = req.headers.cookie || "";
-  if (!header) return {};
-  return Object.fromEntries(
-    header.split(";").map((c) => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
+import { getSessionSteamId } from "./_auth.js";
 
 const PERSONA_STATE = {
   0: "Offline", 1: "Online", 2: "Busy", 3: "Away",
@@ -37,11 +28,15 @@ const cache = new Map(); // steamId → { fetchedAt, data }
 const CACHE_TTL_MS = 10_000;
 
 export default async function handler(req, res) {
-  const cookies = parseCookies(req);
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const steamId = url.searchParams.get("steamid") || cookies.steamid;
+  const sessionSteamId = getSessionSteamId(req);
+  const requestedSteamId = url.searchParams.get("steamid");
+  const steamId = requestedSteamId || sessionSteamId;
 
-  if (!steamId) return res.status(401).json({ error: "Not logged in" });
+  if (!sessionSteamId) return res.status(401).json({ error: "Not logged in" });
+  if (requestedSteamId && requestedSteamId !== sessionSteamId) {
+    return res.status(403).json({ error: "forbidden" });
+  }
 
   const STEAM_KEY = process.env.STEAM_API_KEY;
   if (!STEAM_KEY) {

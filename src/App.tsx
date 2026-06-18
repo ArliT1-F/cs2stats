@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { Header } from "./components/Header";
 import { Landing } from "./components/Landing";
@@ -41,6 +41,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [route, setRoute] = useState(parseRoute());
+  const activeFetchId = useRef(0);
 
   // Listen for back/forward navigation
   useEffect(() => {
@@ -61,21 +62,14 @@ export default function App() {
     }
   }, []);
 
-  // Fetch the right session based on route
-  useEffect(() => {
-    if (route.kind === "profile") {
-      fetchPublicProfile(route.steamId);
-    } else {
-      fetchSession();
-    }
-  }, [route]);
-
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (fetchId: number) => {
     setLoading(true);
     try {
       const r = await fetch("/api/me", { credentials: "include" });
+      if (activeFetchId.current !== fetchId) return;
       if (r.ok) {
         const data = await r.json();
+        if (activeFetchId.current !== fetchId) return;
         setSession({
           profile: data.profile,
           stats: data.stats,
@@ -88,18 +82,21 @@ export default function App() {
         setSession(null);
       }
     } catch {
+      if (activeFetchId.current !== fetchId) return;
       setSession(null);
     } finally {
-      setLoading(false);
+      if (activeFetchId.current === fetchId) setLoading(false);
     }
   }, []);
 
-  const fetchPublicProfile = useCallback(async (steamId: string) => {
+  const fetchPublicProfile = useCallback(async (steamId: string, fetchId: number) => {
     setLoading(true);
     try {
       const r = await fetch(`/api/profile/${steamId}`);
+      if (activeFetchId.current !== fetchId) return;
       if (r.ok) {
         const data = await r.json();
+        if (activeFetchId.current !== fetchId) return;
         setSession({
           profile: data.profile,
           stats: data.stats,
@@ -113,11 +110,24 @@ export default function App() {
         setAuthError(`Profile ${steamId} not found or not public.`);
       }
     } catch {
+      if (activeFetchId.current !== fetchId) return;
       setSession(null);
     } finally {
-      setLoading(false);
+      if (activeFetchId.current === fetchId) setLoading(false);
     }
   }, []);
+
+  // Fetch the right session based on route. Only the newest route request may
+  // update state, so slow back/forward responses cannot overwrite the page.
+  useEffect(() => {
+    const fetchId = activeFetchId.current + 1;
+    activeFetchId.current = fetchId;
+    if (route.kind === "profile") {
+      fetchPublicProfile(route.steamId, fetchId);
+    } else {
+      fetchSession(fetchId);
+    }
+  }, [route, fetchPublicProfile, fetchSession]);
 
   const handleLogin = useCallback(() => {
     window.location.href = "/api/auth/steam";
