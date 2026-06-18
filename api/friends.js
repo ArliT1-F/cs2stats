@@ -44,11 +44,20 @@ async function batchSteamProfiles(steamIds, key) {
   return players;
 }
 
+export function friendDisplayName(friend, fallback = "Unknown player") {
+  const name = friend?.personaName;
+  return typeof name === "string" && name.trim() ? name.trim() : fallback;
+}
+
+export function compareFriendsByName(a, b) {
+  return friendDisplayName(a).localeCompare(friendDisplayName(b), undefined, { sensitivity: "base" });
+}
+
 function mapSteamFriend(p) {
   return {
     source: "steam",
     steamId: p.steamid,
-    personaName: p.personaname,
+    personaName: friendDisplayName({ personaName: p.personaname }, "Unknown Steam friend"),
     avatar: p.avatarfull || p.avatarmedium || null,
     country: p.loccountrycode || null,
     online: p.personastate > 0,
@@ -94,7 +103,7 @@ async function fetchFaceitFriends(steamId, key) {
         source: "faceit",
         faceitId: f.player_id,
         steamId: f.games?.cs2?.game_player_id || f.steam_id_64 || null,
-        personaName: f.nickname,
+        personaName: friendDisplayName({ personaName: f.nickname }, "Unknown FACEIT friend"),
         avatar: f.avatar || null,
         country: f.country || null,
         faceitLevel: f.games?.cs2?.skill_level ?? null,
@@ -104,7 +113,7 @@ async function fetchFaceitFriends(steamId, key) {
     }
   }
 
-  friends.sort((a, b) => a.personaName.localeCompare(b.personaName, undefined, { sensitivity: "base" }));
+  friends.sort(compareFriendsByName);
   return {
     friends,
     total: friendIds.length,
@@ -122,7 +131,7 @@ async function fetchSteamFriends(steamId, key) {
   const total = list.steamIds.length;
   const profiles = await batchSteamProfiles(list.steamIds, key);
   const friends = profiles.map(mapSteamFriend);
-  friends.sort((a, b) => a.personaName.localeCompare(b.personaName, undefined, { sensitivity: "base" }));
+  friends.sort(compareFriendsByName);
   return {
     friends,
     total,
@@ -131,10 +140,10 @@ async function fetchSteamFriends(steamId, key) {
   };
 }
 
-function filterFriends(friends, q) {
+export function filterFriends(friends, q) {
   if (!q) return friends;
   const needle = q.toLowerCase();
-  return friends.filter((f) => f.personaName.toLowerCase().includes(needle));
+  return friends.filter((f) => friendDisplayName(f).toLowerCase().includes(needle));
 }
 
 export default async function handler(req, res) {
