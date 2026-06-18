@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { Header } from "./components/Header";
 import { Landing } from "./components/Landing";
@@ -41,6 +41,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [route, setRoute] = useState(parseRoute());
+  const requestSeqRef = useRef(0);
 
   // Listen for back/forward navigation
   useEffect(() => {
@@ -71,35 +72,60 @@ export default function App() {
   }, [route]);
 
   const fetchSession = useCallback(async () => {
+    const requestId = ++requestSeqRef.current;
     setLoading(true);
     try {
-      const r = await fetch("/api/me", { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        setSession({
-          profile: data.profile,
-          stats: data.stats,
-          faceit: data.faceit,
-          isDemo: !!data.usedDemo,
-          demoReason: data.demoReason,
-          demoMessage: data.demoMessage,
-        });
-      } else {
+      const basicResp = await fetch("/api/me-basic", { credentials: "include" });
+      if (requestSeqRef.current !== requestId) return;
+      if (!basicResp.ok) {
         setSession(null);
+        setLoading(false);
+        return;
       }
+
+      const basic = await basicResp.json();
+      if (requestSeqRef.current !== requestId) return;
+
+      setSession({
+        profile: basic.profile,
+        stats: basic.stats,
+        faceit: null,
+        isDemo: !!basic.usedDemo,
+        demoReason: basic.demoReason,
+        demoMessage: basic.demoMessage,
+      });
+      setLoading(false);
+
+      setTimeout(async () => {
+        try {
+          const faceitResp = await fetch("/api/me-faceit", { credentials: "include" });
+          if (!faceitResp.ok) return;
+          const faceit = await faceitResp.json();
+          if (requestSeqRef.current !== requestId) return;
+          setSession((prev) => {
+            if (!prev || prev.isPublicView || prev.profile.steamid !== basic.profile?.steamid) return prev;
+            return { ...prev, faceit };
+          });
+        } catch {
+          // FACEIT failure is non-fatal; Steam stats are already rendered.
+        }
+      }, 250);
     } catch {
+      if (requestSeqRef.current !== requestId) return;
       setSession(null);
-    } finally {
       setLoading(false);
     }
   }, []);
 
   const fetchPublicProfile = useCallback(async (steamId: string) => {
+    const requestId = ++requestSeqRef.current;
     setLoading(true);
     try {
       const r = await fetch(`/api/profile/${steamId}`);
+      if (requestSeqRef.current !== requestId) return;
       if (r.ok) {
         const data = await r.json();
+        if (requestSeqRef.current !== requestId) return;
         setSession({
           profile: data.profile,
           stats: data.stats,
@@ -108,14 +134,16 @@ export default function App() {
           demoReason: data.demoReason,
           isPublicView: true,
         });
+        setAuthError(null);
       } else {
         setSession(null);
         setAuthError(`Profile ${steamId} not found or not public.`);
       }
     } catch {
+      if (requestSeqRef.current !== requestId) return;
       setSession(null);
     } finally {
-      setLoading(false);
+      if (requestSeqRef.current === requestId) setLoading(false);
     }
   }, []);
 
@@ -124,21 +152,26 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(async () => {
+    const requestId = ++requestSeqRef.current;
+    setSession(null);
+    setLoading(false);
+    setAuthError(null);
+
     if (session?.isDemo) {
-      setSession(null);
       window.history.pushState({}, "", "/");
-      setRoute({ kind: "home" });
+      setRoute((current) => current.kind === "home" ? current : { kind: "home" });
       return;
     }
     try {
-      await fetch("/api/auth/logout");
+      await fetch("/api/auth/logout", { credentials: "include" });
     } catch {}
-    setSession(null);
+    if (requestSeqRef.current !== requestId) return;
     window.history.pushState({}, "", "/");
-    setRoute({ kind: "home" });
+    setRoute((current) => current.kind === "home" ? current : { kind: "home" });
   }, [session]);
 
   const handleDemo = useCallback(() => {
+    requestSeqRef.current += 1;
     const seed = "demo-" + Math.random().toString(36).slice(2, 8);
     setSession({
       profile: generateDemoProfile(seed),
@@ -146,6 +179,7 @@ export default function App() {
       faceit: generateDemoFaceit(seed),
       isDemo: true,
     });
+    setLoading(false);
     setAuthError(null);
     setTimeout(() => {
       document.getElementById("overview")?.scrollIntoView({ behavior: "smooth" });

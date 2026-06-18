@@ -192,9 +192,9 @@ export function SkinsSection({ isDemo }: { isDemo: boolean }) {
         }
       } while (cursor && pagesFetched < MAX_PAGES);
       if (myToken.cancelled) return;
-      // Final settle: mark partial=false now that the loop ended cleanly
+      const finalPartial = !!cursor || (totalInv !== null && allItems.length < totalInv);
       if (allItems.length > 0) {
-        setData(aggregateInto(allItems, totalInv, false, source));
+        setData(aggregateInto(allItems, totalInv, finalPartial, source));
       } else if (!error) {
         // Distinguish "truly empty inventory" from "Steam returned a degraded
         // empty response" (the latter is almost always a soft rate limit).
