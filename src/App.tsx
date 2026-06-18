@@ -21,6 +21,7 @@ interface Session {
   stats: Stats;
   faceit: FaceitData | null;
   isDemo: boolean;
+  usedDemoStats?: boolean;
   isPublicView?: boolean; // true when viewing /u/{steamid} (someone else's profile)
   demoReason?: string | null;
   demoMessage?: string | null;
@@ -80,7 +81,8 @@ export default function App() {
           profile: data.profile,
           stats: data.stats,
           faceit: data.faceit,
-          isDemo: !!data.usedDemo,
+          isDemo: false,
+          usedDemoStats: !!data.usedDemo,
           demoReason: data.demoReason,
           demoMessage: data.demoMessage,
         });
@@ -104,7 +106,8 @@ export default function App() {
           profile: data.profile,
           stats: data.stats,
           faceit: data.faceit,
-          isDemo: !!data.usedDemo,
+          isDemo: false,
+          usedDemoStats: !!data.usedDemo,
           demoReason: data.demoReason,
           isPublicView: true,
         });
@@ -145,6 +148,7 @@ export default function App() {
       stats: generateDemoStats(seed),
       faceit: generateDemoFaceit(seed),
       isDemo: true,
+      usedDemoStats: true,
     });
     setAuthError(null);
     setTimeout(() => {
@@ -197,6 +201,7 @@ export default function App() {
                 faceit={session.faceit}
                 isDemo={session.isDemo}
                 isPublicView={!!session.isPublicView}
+                usedDemoStats={!!session.usedDemoStats}
                 demoReason={session.demoReason || null}
                 demoMessage={session.demoMessage || null}
               />
